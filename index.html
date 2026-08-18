@@ -11,7 +11,7 @@
 <meta property="og:description" content="格莉奇的專屬音樂播放器：可安裝、離線播放、螢幕關閉繼續唱。">
 <meta property="og:url" content="https://yazelin.github.io/glitch-music/">
 <meta property="og:image" content="https://yazelin.github.io/glitch-music/images/icon-512.png">
-<meta name="theme-color" content="#090f14">
+<meta name="theme-color" content="var(--bg0)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,23 +20,58 @@
 <link rel="apple-touch-icon" href="images/icon-192.png">
 <style>
   :root{
+    /* 主題 token:四款主題只換這層,規則全部吃 token。
+       *-rgb 三元組給 rgba() 用;canvas 的色相偏移在 JS THEMES。 */
     --cy:#25c2e8; --mint:#7cf3c0; --purple:#b78bff;
-    --bg:#04080c; --hair:rgba(255,255,255,.07); --mute:#8a9aa3;
+    --cy-rgb:37,194,232; --mint-rgb:124,243,192; --purple-rgb:183,139,255;
+    --bg0:var(--bg0); --bg1:var(--bg1); --bg2:var(--bg2);
+    --ctrl-a:#171c21; --ctrl-b:#111519;
+    --vis-a:#09151d; --vis-b:#100b1b; --vis-c:#061116;
+    --panel-rgb:10,28,38; --panel2-rgb:10,14,19;
+    --ink:var(--ink); --ink2:var(--ink2); --mute:var(--mute); --dim:var(--dim);
+    --fg-rgb:255,255,255;
+    --hair:rgba(var(--fg-rgb),.07);
+  }
+  body[data-theme=light]{
+    --cy:#0d94b8; --mint:#0fa878; --purple:#7d4fe0;
+    --cy-rgb:13,148,184; --mint-rgb:15,168,120; --purple-rgb:125,79,224;
+    --bg0:#eef4f6; --bg1:#e2ebee; --bg2:#e8eff1;
+    --ctrl-a:#dde7ea; --ctrl-b:#d2dfe3;
+    --vis-a:#dceef2; --vis-b:#e6e0f5; --vis-c:#d5ebee;
+    --panel-rgb:214,232,238; --panel2-rgb:224,236,240;
+    --ink:#12262e; --ink2:#31474f; --mute:var(--dim); --dim:#7b8f97;
+    --fg-rgb:10,30,40;
+  }
+  body[data-theme=dark2]{
+    --cy:#ff8a3d; --mint:#ff7cb0; --purple:#cdea6a;
+    --cy-rgb:255,138,61; --mint-rgb:255,124,176; --purple-rgb:205,234,106;
+    --vis-a:#1d0912; --vis-b:#1b1409; --vis-c:#160611;
+    --panel-rgb:38,10,24;
+  }
+  body[data-theme=light2]{
+    --cy:#c75a10; --mint:#d61f6f; --purple:#6a9e1f;
+    --cy-rgb:199,90,16; --mint-rgb:214,31,111; --purple-rgb:106,158,31;
+    --bg0:#f6efee; --bg1:#eee2e4; --bg2:#f1e8e9;
+    --ctrl-a:#eadddf; --ctrl-b:#e3d2d6;
+    --vis-a:#f2dce4; --vis-b:#f5e9dc; --vis-c:#eed5e2;
+    --panel-rgb:238,214,224; --panel2-rgb:240,224,230;
+    --ink:#2e1220; --ink2:#4f3140; --mute:#7b5c6a; --dim:#977b88;
+    --fg-rgb:40,10,25;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
-  body{background:#090f14;color:#e9f8fc;font:15px/1.6 system-ui,-apple-system,"Noto Sans TC",sans-serif;
+  body{background:var(--bg0);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Noto Sans TC",sans-serif;
     display:flex;flex-direction:column}
   button{font:inherit}
 
-  header{flex:none;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--hair);background:#0b1218}
+  header{flex:none;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--hair);background:var(--bg1)}
   header img{width:26px;height:26px;border-radius:7px}
   header b{font-size:.92rem;letter-spacing:.02em}
   header .sp{flex:1}
-  .chip{border:1px solid rgba(37,194,232,.25);border-radius:999px;background:rgba(37,194,232,.08);color:var(--cy);
+  .chip{border:1px solid rgba(var(--cy-rgb),.25);border-radius:999px;background:rgba(var(--cy-rgb),.08);color:var(--cy);
     padding:3px 10px;font-size:.68rem;text-decoration:none;cursor:pointer}
-  .chip:hover{background:rgba(37,194,232,.16)}
-  #offline-badge{border-color:rgba(124,243,192,.28);color:var(--mint);background:rgba(124,243,192,.07);display:none;cursor:default}
+  .chip:hover{background:rgba(var(--cy-rgb),.16)}
+  #offline-badge{border-color:rgba(var(--mint-rgb),.28);color:var(--mint);background:rgba(var(--mint-rgb),.07);display:none;cursor:default}
   #install-btn{display:none}
 
   /* overflow:clip 而非 hidden:hidden 仍可被 focus/scrollIntoView 程式捲動,
@@ -46,96 +81,96 @@
   .music-visual{--music-energy:.08;--music-bass:.05;--music-hue:190;position:relative;flex:1;min-height:230px;overflow:hidden;
     display:grid;place-items:center;isolation:isolate;background:
     radial-gradient(circle at 50% 45%,hsla(var(--music-hue),85%,55%,calc(.11 + var(--music-energy)*.2)),transparent 43%),
-    linear-gradient(145deg,#09151d 0%,#100b1b 55%,#061116 100%)}
+    linear-gradient(145deg,var(--vis-a) 0%,var(--vis-b) 55%,var(--vis-c) 100%)}
   .music-visual::before{content:"";position:absolute;inset:-45%;z-index:-2;opacity:calc(.18 + var(--music-energy)*.65);
-    background:conic-gradient(from 0deg,transparent 0 18%,rgba(37,194,232,.3) 26%,transparent 35% 55%,rgba(183,139,255,.3) 66%,transparent 76% 100%);
+    background:conic-gradient(from 0deg,transparent 0 18%,rgba(var(--cy-rgb),.3) 26%,transparent 35% 55%,rgba(var(--purple-rgb),.3) 66%,transparent 76% 100%);
     animation:music-orbit 12s linear infinite;filter:blur(30px)}
   .music-visual::after{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;opacity:.18;
-    background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 4px)}
+    background:repeating-linear-gradient(0deg,rgba(var(--fg-rgb),.035) 0 1px,transparent 1px 4px)}
   .music-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:-1}
   .music-artwork{position:relative;width:min(190px,43vw);aspect-ratio:1;border-radius:22px;padding:5px;
-    background:linear-gradient(135deg,rgba(124,243,192,.75),rgba(37,194,232,.35),rgba(183,139,255,.8));
+    background:linear-gradient(135deg,rgba(var(--mint-rgb),.75),rgba(var(--cy-rgb),.35),rgba(var(--purple-rgb),.8));
     box-shadow:0 18px 45px rgba(0,0,0,.55),0 0 calc(22px + var(--music-bass)*35px) hsla(var(--music-hue),90%,62%,calc(.2 + var(--music-energy)*.45));
     transform:scale(calc(1 + var(--music-bass)*.045));transition:transform .08s linear;z-index:2}
-  .music-artwork img{display:block;width:100%;height:100%;object-fit:cover;border-radius:17px;background:#05080b}
+  .music-artwork img{display:block;width:100%;height:100%;object-fit:cover;border-radius:17px;background:var(--bg0)}
   .music-artwork::after{content:"4KB";position:absolute;right:12px;bottom:11px;padding:2px 7px;border-radius:6px;
-    color:#e9fbff;background:rgba(5,9,13,.74);border:1px solid rgba(124,243,192,.28);font:700 .62rem/1.5 ui-monospace,monospace;letter-spacing:.12em}
-  .music-now{position:absolute;left:18px;top:15px;z-index:3;color:rgba(230,246,251,.72);font-size:.67rem;letter-spacing:.14em;text-transform:uppercase}
+    color:var(--ink);background:rgba(5,9,13,.74);border:1px solid rgba(var(--mint-rgb),.28);font:700 .62rem/1.5 ui-monospace,monospace;letter-spacing:.12em}
+  .music-now{position:absolute;left:18px;top:15px;z-index:3;color:rgba(var(--fg-rgb),.6);font-size:.67rem;letter-spacing:.14em;text-transform:uppercase}
   .music-live{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:7px;background:var(--mint);box-shadow:0 0 10px var(--mint)}
   .playing .music-live{animation:music-live 1s steps(2) infinite}
   body:not(.playing) .music-visual::before{animation-play-state:paused;opacity:.12}
 
-  .music-controls{flex:none;padding:15px 22px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--hair);background:linear-gradient(180deg,#171c21,#111519)}
+  .music-controls{flex:none;padding:15px 22px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--hair);background:linear-gradient(180deg,var(--ctrl-a),var(--ctrl-b))}
   .music-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:13px}
-  .music-title{color:#e9f8fc;font-size:1rem;font-weight:750;line-height:1.35}
-  .music-artist{color:#72818a;font-size:.72rem;margin-top:2px}
+  .music-title{color:var(--ink);font-size:1rem;font-weight:750;line-height:1.35}
+  .music-artist{color:var(--mute);font-size:.72rem;margin-top:2px}
   .music-title-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}
-  .music-status{color:var(--cy);font-size:.66rem;border:1px solid rgba(37,194,232,.22);border-radius:999px;padding:2px 8px;background:rgba(37,194,232,.08)}
-  .music-lyrics-toggle{border:1px solid rgba(183,139,255,.25);border-radius:999px;background:rgba(183,139,255,.08);color:#cdb5f7;padding:3px 9px;font-size:.66rem;cursor:pointer}
-  .music-lyrics-toggle:hover,.music-lyrics-toggle[aria-expanded=true]{background:rgba(183,139,255,.17);color:#eee4ff}
-  .music-time{display:flex;align-items:center;justify-content:space-between;color:#6f7b82;font-size:.66rem;font-variant-numeric:tabular-nums;margin-top:4px}
+  .music-status{color:var(--cy);font-size:.66rem;border:1px solid rgba(var(--cy-rgb),.22);border-radius:999px;padding:2px 8px;background:rgba(var(--cy-rgb),.08)}
+  .music-lyrics-toggle{border:1px solid rgba(var(--purple-rgb),.25);border-radius:999px;background:rgba(var(--purple-rgb),.08);color:#cdb5f7;padding:3px 9px;font-size:.66rem;cursor:pointer}
+  .music-lyrics-toggle:hover,.music-lyrics-toggle[aria-expanded=true]{background:rgba(var(--purple-rgb),.17);color:#eee4ff}
+  .music-time{display:flex;align-items:center;justify-content:space-between;color:var(--mute);font-size:.66rem;font-variant-numeric:tabular-nums;margin-top:4px}
   .music-range{width:100%;height:5px;appearance:none;border:0;border-radius:999px;outline:none;cursor:pointer;
-    background:linear-gradient(90deg,var(--cy) 0 var(--range-value,0%),rgba(255,255,255,.1) var(--range-value,0%) 100%)}
-  .music-range::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;border:2px solid #dffaff;background:var(--cy);box-shadow:0 0 10px rgba(37,194,232,.55)}
-  .music-range::-moz-range-thumb{width:10px;height:10px;border-radius:50%;border:2px solid #dffaff;background:var(--cy);box-shadow:0 0 10px rgba(37,194,232,.55)}
+    background:linear-gradient(90deg,var(--cy) 0 var(--range-value,0%),rgba(var(--fg-rgb),.1) var(--range-value,0%) 100%)}
+  .music-range::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;border:2px solid #dffaff;background:var(--cy);box-shadow:0 0 10px rgba(var(--cy-rgb),.55)}
+  .music-range::-moz-range-thumb{width:10px;height:10px;border-radius:50%;border:2px solid #dffaff;background:var(--cy);box-shadow:0 0 10px rgba(var(--cy-rgb),.55)}
   .music-buttons{display:flex;justify-content:center;align-items:center;gap:14px;margin:13px auto 10px}
-  .music-button{display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:50%;background:transparent;color:#9fadb4;cursor:pointer;justify-self:center;transition:.15s}
-  .music-button:hover{color:#fff;background:rgba(255,255,255,.07);transform:scale(1.07)}
+  .music-button{display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:50%;background:transparent;color:var(--mute);cursor:pointer;justify-self:center;transition:.15s}
+  .music-button:hover{color:#fff;background:rgba(var(--fg-rgb),.07);transform:scale(1.07)}
   .music-button .ic{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-  .music-button.primary{width:54px;height:54px;color:#07151b;background:linear-gradient(135deg,var(--mint),var(--cy));box-shadow:0 7px 20px rgba(37,194,232,.25)}
+  .music-button.primary{width:54px;height:54px;color:#07151b;background:linear-gradient(135deg,var(--mint),var(--cy));box-shadow:0 7px 20px rgba(var(--cy-rgb),.25)}
   .music-button.primary:hover{color:#07151b;background:linear-gradient(135deg,#a1ffd9,#55daf5)}
   .music-button.primary .ic{width:25px;height:25px;fill:currentColor;stroke:none}
-  .music-volume{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:9px;color:#718088;font-size:.66rem}
+  .music-volume{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:9px;color:var(--mute);font-size:.66rem}
   .music-volume .ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
   .music-volume .music-range{height:4px}
   .music-volume output{width:34px;text-align:right;font-variant-numeric:tabular-nums}
 
   .music-lyrics-panel{position:absolute;inset:0 0 0 auto;z-index:8;width:min(350px,88%);display:flex;flex-direction:column;
-    background:rgba(10,14,19,.97);border-left:1px solid rgba(183,139,255,.22);box-shadow:-18px 0 45px rgba(0,0,0,.52);
+    background:rgba(var(--panel2-rgb),.97);border-left:1px solid rgba(var(--purple-rgb),.22);box-shadow:-18px 0 45px rgba(0,0,0,.52);
     transform:translateX(102%);visibility:hidden;transition:transform .25s ease,visibility 0s linear .25s}
   .music-lyrics-panel.show{transform:translateX(0);visibility:visible;transition-delay:0s}
   .music-lyrics-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--hair)}
   .music-lyrics-head h3{margin:0;color:var(--purple);font-size:.9rem}
-  .music-lyrics-close{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:transparent;color:#8e99a0;font-size:1rem;cursor:pointer}
-  .music-lyrics-close:hover{color:#fff;background:rgba(255,255,255,.07)}
+  .music-lyrics-close{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:transparent;color:var(--mute);font-size:1rem;cursor:pointer}
+  .music-lyrics-close:hover{color:#fff;background:rgba(var(--fg-rgb),.07)}
   .music-lyrics-scroll{flex:1;min-height:0;overflow-y:auto;padding:13px 18px 28px;user-select:text;
     scrollbar-width:thin;scrollbar-color:rgba(143,216,238,.34) transparent}
-  .music-lyrics-section{padding:11px 0 14px;border-bottom:1px solid rgba(255,255,255,.045)}
+  .music-lyrics-section{padding:11px 0 14px;border-bottom:1px solid rgba(var(--fg-rgb),.045)}
   .music-lyrics-section:last-child{border-bottom:0}
   .music-lyrics-label{display:inline-block;margin-bottom:6px;color:var(--cy);font:700 .61rem/1.4 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}
-  .music-lyrics-section p{margin:0;color:#bdc9ce;font-size:.76rem;line-height:1.85;white-space:pre-line}
-  .music-lyrics-section.chorus p{color:#d9e9ee}
+  .music-lyrics-section p{margin:0;color:var(--ink2);font-size:.76rem;line-height:1.85;white-space:pre-line}
+  .music-lyrics-section.chorus p{color:var(--ink)}
 
-  #library{flex:none;display:flex;flex-direction:column;max-height:34dvh;border-top:1px solid var(--hair);background:#0d1319}
-  .lib-head{flex:none;display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--hair);color:#93a3ac;font-size:.72rem}
-  .lib-head .lib-hint{flex:1;text-align:right;color:#55636b;font-size:.64rem}
-  #lib-count{color:#55636b}
+  #library{flex:none;display:flex;flex-direction:column;max-height:34dvh;border-top:1px solid var(--hair);background:var(--bg2)}
+  .lib-head{flex:none;display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--hair);color:var(--mute);font-size:.72rem}
+  .lib-head .lib-hint{flex:1;text-align:right;color:var(--dim);font-size:.64rem}
+  #lib-count{color:var(--dim)}
   #playlist{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(143,216,238,.34) transparent}
-  .trk{display:flex;width:100%;align-items:center;gap:10px;padding:7px 10px 7px 16px;color:#aebbc2;font-size:.8rem}
-  .trk:hover{background:rgba(255,255,255,.05)}
+  .trk{display:flex;width:100%;align-items:center;gap:10px;padding:7px 10px 7px 16px;color:var(--ink2);font-size:.8rem}
+  .trk:hover{background:rgba(var(--fg-rgb),.05)}
   .trk.now{color:var(--mint)}
   .trk-main{display:flex;flex:1;min-width:0;align-items:center;gap:10px;border:0;background:transparent;color:inherit;cursor:pointer;text-align:left;padding:0}
-  .trk-main img{width:30px;height:30px;border-radius:6px;object-fit:cover;background:#05080b;flex:none}
+  .trk-main img{width:30px;height:30px;border-radius:6px;object-fit:cover;background:var(--bg0);flex:none}
   .trk-t{min-width:0}
   .trk-t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .trk-t small{color:#66757e;font-size:.66rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .trk-t small{color:var(--dim);font-size:.66rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
   .live-badge{display:inline-block;margin-left:6px;padding:0 5px;border-radius:5px;vertical-align:1px;
     font:700 .56rem/1.6 ui-monospace,monospace;letter-spacing:.08em;color:#ff9d9d;border:1px solid rgba(255,120,120,.45);background:rgba(255,80,80,.1)}
-  .sec-head{padding:8px 16px 4px;color:#5d6b74;font-size:.64rem;letter-spacing:.12em;border-top:1px solid rgba(255,255,255,.05)}
-  .trk.now .trk-t small{color:rgba(124,243,192,.6)}
+  .sec-head{padding:8px 16px 4px;color:var(--dim);font-size:.64rem;letter-spacing:.12em;border-top:1px solid rgba(var(--fg-rgb),.05)}
+  .trk.now .trk-t small{color:rgba(var(--mint-rgb),.6)}
   .trk-act{display:flex;gap:2px;flex:none;opacity:.55}
   .trk:hover .trk-act{opacity:1}
   .trk-act button{border:0;background:transparent;color:#8a98a1;cursor:pointer;width:26px;height:26px;border-radius:6px;font-size:.78rem;display:grid;place-items:center}
-  .trk-act button:hover{background:rgba(255,255,255,.09);color:#fff}
+  .trk-act button:hover{background:rgba(var(--fg-rgb),.09);color:#fff}
   .trk-act button:disabled{opacity:.25;cursor:default}
   body.dragging::after{content:"放開加入曲庫";position:fixed;inset:0;z-index:99;display:grid;place-items:center;
-    background:rgba(9,15,20,.82);color:var(--mint);font-size:1.1rem;border:2px dashed rgba(124,243,192,.5)}
-  .lyr-line{margin:0;padding:3px 0;color:#5d6b74;font-size:.8rem;line-height:1.8;transition:color .2s}
+    background:rgba(9,15,20,.82);color:var(--mint);font-size:1.1rem;border:2px dashed rgba(var(--mint-rgb),.5)}
+  .lyr-line{margin:0;padding:3px 0;color:var(--dim);font-size:.8rem;line-height:1.8;transition:color .2s}
   .lyr-line.on{color:var(--mint);font-size:.86rem;font-weight:600}
   .lyr-line.past{color:#8fa0a9}
 
   /* 三視圖:播放器/歌單/歌單內容,translateX 滑動;main 是舞台 */
-  .view{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;background:#090f14;
+  .view{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg0);
     transition:transform .22s ease,visibility 0s linear .22s;transform:translateX(0)}
   .view.side{transform:translateX(102%);visibility:hidden}
   body[data-view=lists] #view-lists,body[data-view=detail] #view-detail,body[data-view=radio] #view-radio{transform:translateX(0);visibility:visible;transition-delay:0s}
@@ -143,51 +178,51 @@
   #view-detail{z-index:6}
   #pl-list,#pl-tracks,#radio-list{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(143,216,238,.34) transparent}
   .detail-actions{flex:none;display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--hair)}
-  .plrow{display:flex;width:100%;align-items:center;gap:12px;padding:12px 16px;border:0;background:transparent;color:#cdd8de;cursor:pointer;text-align:left;font-size:.86rem;border-bottom:1px solid rgba(255,255,255,.04)}
-  .plrow:hover{background:rgba(255,255,255,.05)}
-  .plrow .pl-ico{display:grid;place-items:center;width:38px;height:38px;border-radius:9px;background:rgba(124,243,192,.1);color:var(--mint);font-size:1rem;flex:none}
-  .plrow small{display:block;color:#66757e;font-size:.66rem}
-  .plrow.active .pl-ico{box-shadow:0 0 0 1px rgba(124,243,192,.5)}
+  .plrow{display:flex;width:100%;align-items:center;gap:12px;padding:12px 16px;border:0;background:transparent;color:var(--ink2);cursor:pointer;text-align:left;font-size:.86rem;border-bottom:1px solid rgba(var(--fg-rgb),.04)}
+  .plrow:hover{background:rgba(var(--fg-rgb),.05)}
+  .plrow .pl-ico{display:grid;place-items:center;width:38px;height:38px;border-radius:9px;background:rgba(var(--mint-rgb),.1);color:var(--mint);font-size:1rem;flex:none}
+  .plrow small{display:block;color:var(--dim);font-size:.66rem}
+  .plrow.active .pl-ico{box-shadow:0 0 0 1px rgba(var(--mint-rgb),.5)}
 
-  #tabbar{flex:none;display:flex;border-top:1px solid var(--hair);background:#0b1218}
-  #tabbar button{flex:1;border:0;background:transparent;color:#7f8f98;padding:9px 0 max(9px,env(safe-area-inset-bottom));font-size:.78rem;cursor:pointer}
+  #tabbar{flex:none;display:flex;border-top:1px solid var(--hair);background:var(--bg1)}
+  #tabbar button{flex:1;border:0;background:transparent;color:var(--mute);padding:9px 0 max(9px,env(safe-area-inset-bottom));font-size:.78rem;cursor:pointer}
   #tabbar button.on{color:var(--mint)}
 
   #miniplayer{flex:none;display:flex;align-items:center;gap:10px;padding:6px 12px;border-top:1px solid var(--hair);
-    background:rgba(10,28,38,.92);cursor:pointer}
+    background:rgba(var(--panel-rgb),.92);cursor:pointer}
   #miniplayer[hidden]{display:none}
   #miniplayer img{width:30px;height:30px;border-radius:7px;object-fit:cover}
-  #miniplayer span{flex:1;min-width:0;font-size:.8rem;color:#dff0f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #miniplayer span{flex:1;min-width:0;font-size:.8rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #miniplayer .music-button{width:34px;height:34px}
   #miniplayer .music-button .ic{fill:currentColor;stroke:none;width:19px;height:19px}
   body[data-view=player] #miniplayer{display:none}
 
   /* 列手勢:左滑露出移除鈕;☰ 把手拖曳排序 */
   .trk{position:relative;overflow:hidden;padding:0}
-  .trk-slide{position:relative;z-index:1;display:flex;width:100%;align-items:center;gap:10px;padding:7px 10px 7px 16px;background:#0d1319;
+  .trk-slide{position:relative;z-index:1;display:flex;width:100%;align-items:center;gap:10px;padding:7px 10px 7px 16px;background:var(--bg2);
     transition:transform .18s ease;touch-action:pan-y}
   .trk.swiping .trk-slide{transition:none}
   .trk.open .trk-slide{transform:translateX(-84px)}
   .trk-del{position:absolute;z-index:0;top:0;right:0;bottom:0;width:84px;border:0;background:#c0392b;color:#fff;
     font-size:.78rem;cursor:pointer;display:grid;place-items:center}
-  .trk-handle{flex:none;color:#5d6b74;cursor:grab;padding:6px 8px;font-size:.9rem;touch-action:none;user-select:none}
+  .trk-handle{flex:none;color:var(--dim);cursor:grab;padding:6px 8px;font-size:.9rem;touch-action:none;user-select:none}
   .trk-handle:active{cursor:grabbing;color:var(--mint)}
-  .trk-more{flex:none;border:0;background:transparent;color:#5d6b74;cursor:pointer;padding:6px 6px;font-size:1rem;line-height:1}
+  .trk-more{flex:none;border:0;background:transparent;color:var(--dim);cursor:pointer;padding:6px 6px;font-size:1rem;line-height:1}
   .trk-more:hover{color:var(--mint)}
   .trk{transition:transform .12s ease}
-  .trk.dragging{transition:none;z-index:5;opacity:.92;background:#0d1319;
-    box-shadow:0 8px 22px rgba(0,0,0,.55),inset 0 0 0 1px rgba(124,243,192,.45)}
+  .trk.dragging{transition:none;z-index:5;opacity:.92;background:var(--bg2);
+    box-shadow:0 8px 22px rgba(0,0,0,.55),inset 0 0 0 1px rgba(var(--mint-rgb),.45)}
 
   #picker{position:absolute;inset:0;z-index:9;display:grid;place-items:end center;background:rgba(4,8,12,.6)}
   #picker[hidden]{display:none}
-  .picker-box{width:100%;max-height:70%;display:flex;flex-direction:column;background:#0d1319;border-top:1px solid rgba(124,243,192,.3);border-radius:14px 14px 0 0}
+  .picker-box{width:100%;max-height:70%;display:flex;flex-direction:column;background:var(--bg2);border-top:1px solid rgba(var(--mint-rgb),.3);border-radius:14px 14px 0 0}
   #picker-list{flex:1;min-height:0;overflow-y:auto}
   #picker-list .plrow .pk-state{flex:none;color:var(--mint);font-size:.72rem}
 
   footer{flex:none;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
-    padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--hair);background:#0b1218;font-size:.7rem;color:var(--mute)}
-  footer a{color:#9fc3d2;text-decoration:none}
-  footer a:hover{color:#dff5fd}
+    padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--hair);background:var(--bg1);font-size:.7rem;color:var(--mute)}
+  footer a{color:var(--ink2);text-decoration:none}
+  footer a:hover{color:var(--ink)}
   body.embedded header .chip:not(#offline-badge),body.embedded footer{display:none}
   /* 電台模式:播放器頁不顯示歌單佇列——電台跟歌單是兩回事 */
   body.radio-on #library{display:none}
@@ -222,6 +257,7 @@
   <img src="images/icon-192.png" alt="">
   <b>格莉奇音樂</b>
   <span class="sp"></span>
+  <button class="chip" id="theme-btn" type="button" title="切換主題配色">暗 · glitch</button>
   <span class="chip" id="offline-badge">已可離線</span>
   <button class="chip" id="install-btn" type="button">安裝 App</button>
   <a class="chip" href="https://yazelin.github.io/ai-brain-site/" target="_blank" rel="noopener">格莉奇OS</a>
@@ -274,7 +310,7 @@
   <div class="view side" id="view-detail">
     <div class="lib-head">
       <button class="chip" id="pl-back" type="button">‹ 歌單</button>
-      <b id="pl-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e9f8fc"></b>
+      <b id="pl-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)"></b>
       <button class="chip" id="pl-rename" type="button">改名</button>
       <button class="chip" id="pl-delete" type="button">刪除</button>
     </div>
@@ -338,6 +374,25 @@ const lyricsPanel=$('music-lyrics'),lyricsToggle=$('music-lyrics-toggle');
 // iOS 背景會掛起 AudioContext；createMediaElementSource 一接就拆不回來，聲音會跟著斷。
 // 所以 iOS 完全不接 audio graph，頻譜走 draw() 裡的無資料 fallback 動畫——背景播放優先於視覺。
 const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+/* 主題:CSS 端吃 body[data-theme] 的 token;canvas 端吃 THEMES(色相偏移/
+   波形色/混色模式/明度)。淺色底不能用加法發光(lighter 疊到白),換 source-over+深筆畫。 */
+const THEMES={
+  dark:  {label:'暗 · glitch', hue:0,   comp:'lighter',    lum:64, waveA:'37,194,232',  waveB:'183,139,255', meta:'#090f14'},
+  light: {label:'淺 · glitch', hue:0,   comp:'source-over',lum:38, waveA:'13,148,184',  waveB:'125,79,224',  meta:'#e2ebee'},
+  dark2: {label:'暗 · 補色',   hue:180, comp:'lighter',    lum:64, waveA:'255,138,61',  waveB:'205,234,106', meta:'#090f14'},
+  light2:{label:'淺 · 補色',   hue:180, comp:'source-over',lum:36, waveA:'199,90,16',   waveB:'106,158,31',  meta:'#eee2e4'},
+};
+const THEME_ORDER=['dark','light','dark2','light2'];
+let TH=THEMES.dark;
+function applyTheme(name){
+  if(!THEMES[name])name='dark';
+  TH=THEMES[name];
+  if(name==='dark')delete document.body.dataset.theme;else document.body.dataset.theme=name;
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content',TH.meta);
+  $('theme-btn').textContent=TH.label;
+  try{localStorage.setItem('glitchmusic:theme',name);}catch(e){}
+}
+
 if(window!==window.top)document.body.classList.add('embedded');
 
 let tracks=[],cursor=0,mode='all'; // mode: all=循環全部 one=單曲 shuffle=隨機
@@ -514,16 +569,16 @@ function draw(now){
     bass=.3+Math.abs(Math.sin(now/620))*.22+Math.sin(now/241)*.05;
     treble=.2+Math.sin(now/300)*.12;
   }
-  const hue=Math.round(180+treble*105);visual.style.setProperty('--music-energy',energy.toFixed(3));visual.style.setProperty('--music-bass',Math.max(0,bass).toFixed(3));visual.style.setProperty('--music-hue',hue);
+  const hue=Math.round(180+treble*105+TH.hue)%360;visual.style.setProperty('--music-energy',energy.toFixed(3));visual.style.setProperty('--music-bass',Math.max(0,bass).toFixed(3));visual.style.setProperty('--music-hue',hue);
   const cx=width/2,cy=height*.5,minSide=Math.min(width,height),inner=Math.min(minSide*.345,108),bars=72;
-  ctx.save();ctx.globalCompositeOperation='lighter';
+  ctx.save();ctx.globalCompositeOperation=TH.comp;
   for(let i=0;i<bars;i++){
     const amp=analyser&&!audio.paused&&audio===audioLocal?(freq[Math.floor(i/bars*freq.length*.72)]||0)/255:(audio.paused?.025:.14)+.02*Math.sin(now/420+i*.7)+(audio.paused?0:Math.max(0,energy-.08)*Math.abs(Math.sin(i*2.7+now/240))*1.15);
     const angle=-Math.PI/2+i/bars*Math.PI*2,length=4+amp*(20+energy*28),x1=cx+Math.cos(angle)*inner,y1=cy+Math.sin(angle)*inner;
     ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(cx+Math.cos(angle)*(inner+length),cy+Math.sin(angle)*(inner+length));
-    ctx.strokeStyle=`hsla(${174+i/bars*116},90%,64%,${.22+amp*.68})`;ctx.lineWidth=1.4+amp*2.2;ctx.lineCap='round';ctx.stroke();
+    ctx.strokeStyle=`hsla(${(174+i/bars*116+TH.hue)%360},90%,${TH.lum}%,${.22+amp*.68})`;ctx.lineWidth=1.4+amp*2.2;ctx.lineCap='round';ctx.stroke();
   }
-  ctx.beginPath();ctx.arc(cx,cy,inner-6+bass*9,0,Math.PI*2);ctx.strokeStyle=`hsla(${hue},95%,66%,${.16+energy*.28})`;ctx.lineWidth=2+bass*5;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,inner-6+bass*9,0,Math.PI*2);ctx.strokeStyle=`hsla(${hue},95%,${TH.lum+2}%,${.16+energy*.28})`;ctx.lineWidth=2+bass*5;ctx.stroke();
   if(!audio.paused){
     // 底部波形:本機歌畫真波形,電台/模擬用合成正弦疊加,別讓畫面少一層
     ctx.beginPath();
@@ -535,13 +590,13 @@ function draw(now){
                   :height*.82+(Math.sin(i*.13+now/210)*.5+Math.sin(i*.041+now/470)*.5)*(10+energy*20);
       i?ctx.lineTo(x,y):ctx.moveTo(x,y);
     }
-    const g=ctx.createLinearGradient(0,0,width,0);g.addColorStop(0,'rgba(37,194,232,0)');g.addColorStop(.25,`rgba(37,194,232,${.2+energy*.45})`);g.addColorStop(.75,`rgba(183,139,255,${.2+energy*.45})`);g.addColorStop(1,'rgba(183,139,255,0)');ctx.strokeStyle=g;ctx.lineWidth=1.3;ctx.stroke();
+    const g=ctx.createLinearGradient(0,0,width,0);g.addColorStop(0,`rgba(${TH.waveA},0)`);g.addColorStop(.25,`rgba(${TH.waveA},${.2+energy*.45})`);g.addColorStop(.75,`rgba(${TH.waveB},${.2+energy*.45})`);g.addColorStop(1,`rgba(${TH.waveB},0)`);ctx.strokeStyle=g;ctx.lineWidth=1.3;ctx.stroke();
   }
   if(!reducedMotion&&!audio.paused&&bass>.38&&particles.length<48&&Math.random()<bass*.45){
-    const angle=Math.random()*Math.PI*2;particles.push({angle,r:inner+8,speed:.45+Math.random()*1.1,size:1+Math.random()*2.2,life:1,hue:170+Math.random()*120});
+    const angle=Math.random()*Math.PI*2;particles.push({angle,r:inner+8,speed:.45+Math.random()*1.1,size:1+Math.random()*2.2,life:1,hue:(170+Math.random()*120+TH.hue)%360});
   }
   particles=particles.filter(p=>p.life>.02);
-  particles.forEach(p=>{p.r+=p.speed*(1+energy);p.life-=.012+p.speed*.004;const x=cx+Math.cos(p.angle)*p.r,y=cy+Math.sin(p.angle)*p.r;ctx.beginPath();ctx.arc(x,y,p.size,0,Math.PI*2);ctx.fillStyle=`hsla(${p.hue},95%,70%,${p.life*.75})`;ctx.fill();});
+  particles.forEach(p=>{p.r+=p.speed*(1+energy);p.life-=.012+p.speed*.004;const x=cx+Math.cos(p.angle)*p.r,y=cy+Math.sin(p.angle)*p.r;ctx.beginPath();ctx.arc(x,y,p.size,0,Math.PI*2);ctx.fillStyle=`hsla(${p.hue},95%,${TH.lum+6}%,${p.life*.75})`;ctx.fill();});
   ctx.restore();frame=requestAnimationFrame(draw);
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!audio.paused)startVisualizer();});
@@ -1119,6 +1174,7 @@ function playTrack(i,autoplay){
 /* ===== 啟動 ===== */
 (async()=>{
   document.body.dataset.view='player';
+  try{applyTheme(localStorage.getItem('glitchmusic:theme')||'dark');}catch(e){applyTheme('dark');}
   let builtin=[];
   try{builtin=await(await fetch('tracks.json')).json();}
   catch(e){statusEl.textContent='曲庫載入失敗';}
@@ -1219,6 +1275,11 @@ async function rescanTags(){
   }
   if(fixed){renderPlaylist();renderLists();renderDetail();if(tracks[cursor])syncMini();statusEl.textContent='已補讀 '+fixed+' 首的標籤';}
 }
+
+$('theme-btn').addEventListener('click',()=>{
+  const cur=document.body.dataset.theme||'dark';
+  applyTheme(THEME_ORDER[(THEME_ORDER.indexOf(cur)+1)%THEME_ORDER.length]);
+});
 
 /* ===== PWA：SW 註冊＋離線徽章（實查）＋安裝鈕（三態） ===== */
 if('serviceWorker'in navigator){
