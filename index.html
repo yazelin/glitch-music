@@ -1136,7 +1136,7 @@ async function importFiles(files,targetPl){
       continue;}
     let tag={title:null,artist:null,album:null,picture:null,lyrics:null};
     // metadata 路由:mp4 家族走 ilst atoms,其他走 ID3
-    try{tag=isMp4?{lyrics:null,...parseMp4Meta(buf)}:parseId3(buf);}
+    try{tag=isMp4?parseMp4Meta(buf):parseId3(buf);}
     catch(e){console.warn('metadata 解析失敗,用檔名',f.name,e);}
     const song={
       id,kind:'user',
