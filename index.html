@@ -74,7 +74,6 @@
   .chip{border:1px solid rgba(var(--cy-rgb),.25);border-radius:999px;background:rgba(var(--cy-rgb),.08);color:var(--cy);
     padding:3px 10px;font-size:.68rem;text-decoration:none;cursor:pointer}
   .chip:hover{background:rgba(var(--cy-rgb),.16)}
-  #offline-badge{border-color:rgba(var(--mint-rgb),.28);color:var(--mint);background:rgba(var(--mint-rgb),.07);display:none;cursor:default}
   #install-btn{display:none}
 
   /* overflow:clip 而非 hidden:hidden 仍可被 focus/scrollIntoView 程式捲動,
@@ -109,8 +108,8 @@
   .music-artist{color:var(--mute);font-size:.72rem;margin-top:2px}
   .music-title-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}
   .music-status{color:var(--cy);font-size:.66rem;border:1px solid rgba(var(--cy-rgb),.22);border-radius:999px;padding:2px 8px;background:rgba(var(--cy-rgb),.08)}
-  .music-lyrics-toggle{border:1px solid rgba(var(--purple-rgb),.25);border-radius:999px;background:rgba(var(--purple-rgb),.08);color:#cdb5f7;padding:3px 9px;font-size:.66rem;cursor:pointer}
-  .music-lyrics-toggle:hover,.music-lyrics-toggle[aria-expanded=true]{background:rgba(var(--purple-rgb),.17);color:#eee4ff}
+  .music-lyrics-toggle{border:1px solid rgba(var(--purple-rgb),.35);border-radius:999px;background:rgba(var(--purple-rgb),.08);color:var(--purple);padding:3px 9px;font-size:.66rem;cursor:pointer}
+  .music-lyrics-toggle:hover,.music-lyrics-toggle[aria-expanded=true]{background:rgba(var(--purple-rgb),.2);color:var(--ink)}
   .music-time{display:flex;align-items:center;justify-content:space-between;color:var(--mute);font-size:.66rem;font-variant-numeric:tabular-nums;margin-top:4px}
   .music-range{width:100%;height:5px;appearance:none;border:0;border-radius:999px;outline:none;cursor:pointer;
     background:linear-gradient(90deg,var(--cy) 0 var(--range-value,0%),rgba(var(--fg-rgb),.1) var(--range-value,0%) 100%)}
@@ -227,7 +226,7 @@
     padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--hair);background:var(--bg1);font-size:.7rem;color:var(--mute)}
   footer a{color:var(--ink2);text-decoration:none}
   footer a:hover{color:var(--ink)}
-  body.embedded header .chip:not(#offline-badge),body.embedded footer{display:none}
+  body.embedded header .chip,body.embedded footer{display:none}
   /* 電台模式:播放器頁不顯示歌單佇列——電台跟歌單是兩回事 */
   body.radio-on #library{display:none}
 
@@ -262,9 +261,7 @@
   <b>格莉奇音樂</b>
   <span class="sp"></span>
   <button class="chip" id="theme-btn" type="button" title="切換主題配色">暗 · glitch</button>
-  <span class="chip" id="offline-badge">已可離線</span>
   <button class="chip" id="install-btn" type="button">安裝 App</button>
-  <a class="chip" href="https://yazelin.github.io/ai-brain-site/" target="_blank" rel="noopener">格莉奇OS</a>
 </header>
 
 <main>
@@ -429,6 +426,14 @@ const songDel=id=>tx('songs',1,s=>s.delete(id));
 const kvGet=k=>tx('kv',0,s=>s.get(k));
 const kvSet=(k,v)=>tx('kv',1,s=>s.put(v,k));
 
+let posTimer=0;
+function savePos(){
+  if(radioMode)return;
+  const t=tracks[cursor];if(!t)return;
+  const d=audio.duration;
+  const at=(Number.isFinite(d)&&d-audio.currentTime<5)?0:audio.currentTime;
+  kvSet('pos',{id:t.id,t:at}).catch(()=>{});
+}
 const fmt=s=>{if(!Number.isFinite(s)||s<0)return'0:00';return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');};
 function rangeFill(input,value){
   const min=Number(input.min)||0,max=Number(input.max)||1,pct=max>min?(Number(value)-min)/(max-min)*100:0;
@@ -502,7 +507,11 @@ volume.addEventListener('input',()=>{
 for(const el of[audioLocal,audioNet]){
 el.addEventListener('loadedmetadata',e=>{if(e.target===audio)updateProgress();});
 el.addEventListener('durationchange',e=>{if(e.target===audio){detectStream();updateProgress();}});
-el.addEventListener('timeupdate',e=>{if(e.target===audio)updateProgress();});
+el.addEventListener('timeupdate',e=>{
+  if(e.target!==audio)return;
+  updateProgress();
+  if(!posTimer&&!audio.paused){posTimer=setTimeout(()=>{posTimer=0;savePos();},3000);}
+});
 el.addEventListener('waiting',e=>{if(e.target===audio)statusEl.textContent='讀取中…';});
 el.addEventListener('playing',e=>{if(e.target===audio)statusEl.textContent=tracks[cursor]?.stream?'LIVE 播送中':'播放中';});
 el.addEventListener('error',e=>{
@@ -521,6 +530,7 @@ function onPlayEvt(){
   syncMini();startVisualizer();
 }
 function onPauseEvt(){
+  savePos();
   document.body.classList.remove('playing');
   playIcon.setAttribute('href','#i-play');playBtn.title='播放';playBtn.setAttribute('aria-label','播放');if(!hadError)statusEl.textContent='已暫停';
   if('mediaSession'in navigator)navigator.mediaSession.playbackState='paused';
@@ -1210,6 +1220,13 @@ function playTrack(i,autoplay){
   let start=0;
   try{const last=await kvGet('last');const i=tracks.findIndex(t=>t.id===last);if(i>=0)start=i;}catch(e){}
   if(tracks.length)playTrack(start,false);else renderPlaylist();
+  try{
+    const pos=await kvGet('pos');
+    if(pos&&pos.t>3&&tracks[cursor]&&tracks[cursor].id===pos.id){
+      const seek=()=>{audio.currentTime=pos.t;updateProgress();};
+      if(audio.readyState>=1)seek();else audio.addEventListener('loadedmetadata',seek,{once:true});
+    }
+  }catch(e){}
   startVisualizer();
   try{
     const st=await kvGet('stations');
@@ -1294,7 +1311,7 @@ if('serviceWorker'in navigator){
   navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW 註冊失敗',e));
   navigator.serviceWorker.addEventListener('message',ev=>{
     const d=ev.data||{};
-    if(d.type==='offline-verified'&&d.ok)$('offline-badge').style.display='inline-block';
+    // 離線實查照跑(SW 端),UI 徽章已移除
   });
   // 徽章不准自我宣告：等 SW 就緒後請它逐項 cache.match 實查，一項不缺才亮
   navigator.serviceWorker.ready.then(reg=>{
