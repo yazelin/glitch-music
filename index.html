@@ -129,6 +129,54 @@
   .lyr-line.on{color:var(--mint);font-size:.86rem;font-weight:600}
   .lyr-line.past{color:#8fa0a9}
 
+  /* 三視圖:播放器/歌單/歌單內容,translateX 滑動;main 是舞台 */
+  .view{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;background:#090f14;
+    transition:transform .22s ease,visibility 0s linear .22s;transform:translateX(0)}
+  .view.side{transform:translateX(102%);visibility:hidden}
+  body[data-view=lists] #view-lists,body[data-view=detail] #view-detail{transform:translateX(0);visibility:visible;transition-delay:0s}
+  #view-lists,#view-detail{z-index:5}
+  #view-detail{z-index:6}
+  #pl-list,#pl-tracks{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(143,216,238,.34) transparent}
+  .detail-actions{flex:none;display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--hair)}
+  .plrow{display:flex;width:100%;align-items:center;gap:12px;padding:12px 16px;border:0;background:transparent;color:#cdd8de;cursor:pointer;text-align:left;font-size:.86rem;border-bottom:1px solid rgba(255,255,255,.04)}
+  .plrow:hover{background:rgba(255,255,255,.05)}
+  .plrow .pl-ico{display:grid;place-items:center;width:38px;height:38px;border-radius:9px;background:rgba(124,243,192,.1);color:var(--mint);font-size:1rem;flex:none}
+  .plrow small{display:block;color:#66757e;font-size:.66rem}
+  .plrow.active .pl-ico{box-shadow:0 0 0 1px rgba(124,243,192,.5)}
+
+  #tabbar{flex:none;display:flex;border-top:1px solid var(--hair);background:#0b1218}
+  #tabbar button{flex:1;border:0;background:transparent;color:#7f8f98;padding:9px 0 max(9px,env(safe-area-inset-bottom));font-size:.78rem;cursor:pointer}
+  #tabbar button.on{color:var(--mint)}
+
+  #miniplayer{flex:none;display:flex;align-items:center;gap:10px;padding:6px 12px;border-top:1px solid var(--hair);
+    background:rgba(10,28,38,.92);cursor:pointer}
+  #miniplayer[hidden]{display:none}
+  #miniplayer img{width:30px;height:30px;border-radius:7px;object-fit:cover}
+  #miniplayer span{flex:1;min-width:0;font-size:.8rem;color:#dff0f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #miniplayer .music-button{width:34px;height:34px}
+  #miniplayer .music-button .ic{fill:currentColor;stroke:none;width:19px;height:19px}
+  body[data-view=player] #miniplayer{display:none}
+
+  /* 列手勢:左滑露出移除鈕;☰ 把手拖曳排序 */
+  .trk{position:relative;overflow:hidden;padding:0}
+  .trk-slide{position:relative;z-index:1;display:flex;width:100%;align-items:center;gap:10px;padding:7px 10px 7px 16px;background:#0d1319;
+    transition:transform .18s ease;touch-action:pan-y}
+  .trk.swiping .trk-slide{transition:none}
+  .trk.open .trk-slide{transform:translateX(-84px)}
+  .trk-del{position:absolute;z-index:0;top:0;right:0;bottom:0;width:84px;border:0;background:#c0392b;color:#fff;
+    font-size:.78rem;cursor:pointer;display:grid;place-items:center}
+  .trk-handle{flex:none;color:#5d6b74;cursor:grab;padding:6px 8px;font-size:.9rem;touch-action:none;user-select:none}
+  .trk-handle:active{cursor:grabbing;color:var(--mint)}
+  .trk.dragging{opacity:.35}
+  .trk.drop-above{box-shadow:inset 0 2px 0 var(--mint)}
+  .trk.drop-below{box-shadow:inset 0 -2px 0 var(--mint)}
+
+  #picker{position:absolute;inset:0;z-index:9;display:grid;place-items:end center;background:rgba(4,8,12,.6)}
+  #picker[hidden]{display:none}
+  .picker-box{width:100%;max-height:70%;display:flex;flex-direction:column;background:#0d1319;border-top:1px solid rgba(124,243,192,.3);border-radius:14px 14px 0 0}
+  #picker-list{flex:1;min-height:0;overflow-y:auto}
+  #picker-list .plrow .pk-state{flex:none;color:var(--mint);font-size:.72rem}
+
   footer{flex:none;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
     padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--hair);background:#0b1218;font-size:.7rem;color:var(--mute)}
   footer a{color:#9fc3d2;text-decoration:none}
@@ -168,43 +216,83 @@
 </header>
 
 <main>
-  <div class="music-visual" id="music-visual">
-    <span class="music-now"><i class="music-live"></i>Glitch audio core</span>
-    <canvas class="music-canvas" id="music-canvas" aria-hidden="true"></canvas>
-    <div class="music-artwork"><img id="music-cover" src="images/cover-4kb.jpg" alt="單曲封面"></div>
-  </div>
-  <div class="music-controls">
-    <div class="music-title-row">
-      <div><div class="music-title" id="music-title">格莉奇 4KB</div><div class="music-artist" id="music-artist">yaze_lin_j303</div></div>
-      <div class="music-title-actions"><span class="music-status" id="music-status">準備播放</span><button class="music-lyrics-toggle" id="music-mode" type="button" title="播放模式">循環</button><button class="music-lyrics-toggle" id="music-lyrics-toggle" type="button" aria-expanded="false" aria-controls="music-lyrics">歌詞</button></div>
+  <div class="view" id="view-player">
+    <div class="music-visual" id="music-visual">
+      <span class="music-now"><i class="music-live"></i>Glitch audio core</span>
+      <canvas class="music-canvas" id="music-canvas" aria-hidden="true"></canvas>
+      <div class="music-artwork"><img id="music-cover" src="images/cover-4kb.jpg" alt="單曲封面"></div>
     </div>
-    <input class="music-range" id="music-progress" type="range" min="0" max="195" value="0" step="0.1" aria-label="播放進度">
-    <div class="music-time"><span id="music-current">0:00</span><span id="music-duration">0:00</span></div>
-    <div class="music-buttons">
-      <button class="music-button" id="music-prev" type="button" title="上一首" aria-label="上一首"><svg class="ic"><use href="#i-prev"/></svg></button>
-      <button class="music-button" id="music-back" type="button" title="倒退 10 秒" aria-label="倒退 10 秒"><svg class="ic"><use href="#i-rewind"/></svg></button>
-      <button class="music-button primary" id="music-play" type="button" title="播放" aria-label="播放"><svg class="ic"><use id="music-play-icon" href="#i-play"/></svg></button>
-      <button class="music-button" id="music-forward" type="button" title="快轉 10 秒" aria-label="快轉 10 秒"><svg class="ic"><use href="#i-forward"/></svg></button>
-      <button class="music-button" id="music-next" type="button" title="下一首" aria-label="下一首"><svg class="ic"><use href="#i-next"/></svg></button>
+    <div class="music-controls">
+      <div class="music-title-row">
+        <div><div class="music-title" id="music-title">格莉奇 4KB</div><div class="music-artist" id="music-artist">yaze_lin_j303</div></div>
+        <div class="music-title-actions"><span class="music-status" id="music-status">準備播放</span><button class="music-lyrics-toggle" id="music-mode" type="button" title="播放模式">循環</button><button class="music-lyrics-toggle" id="music-lyrics-toggle" type="button" aria-expanded="false" aria-controls="music-lyrics">歌詞</button></div>
+      </div>
+      <input class="music-range" id="music-progress" type="range" min="0" max="195" value="0" step="0.1" aria-label="播放進度">
+      <div class="music-time"><span id="music-current">0:00</span><span id="music-duration">0:00</span></div>
+      <div class="music-buttons">
+        <button class="music-button" id="music-prev" type="button" title="上一首" aria-label="上一首"><svg class="ic"><use href="#i-prev"/></svg></button>
+        <button class="music-button" id="music-back" type="button" title="倒退 10 秒" aria-label="倒退 10 秒"><svg class="ic"><use href="#i-rewind"/></svg></button>
+        <button class="music-button primary" id="music-play" type="button" title="播放" aria-label="播放"><svg class="ic"><use id="music-play-icon" href="#i-play"/></svg></button>
+        <button class="music-button" id="music-forward" type="button" title="快轉 10 秒" aria-label="快轉 10 秒"><svg class="ic"><use href="#i-forward"/></svg></button>
+        <button class="music-button" id="music-next" type="button" title="下一首" aria-label="下一首"><svg class="ic"><use href="#i-next"/></svg></button>
+      </div>
+      <label class="music-volume" for="music-volume"><svg class="ic"><use href="#i-volume"/></svg><input class="music-range" id="music-volume" type="range" min="0" max="1" value="0.8" step="0.01" aria-label="音量"><output id="music-volume-value">80%</output></label>
     </div>
-    <label class="music-volume" for="music-volume"><svg class="ic"><use href="#i-volume"/></svg><input class="music-range" id="music-volume" type="range" min="0" max="1" value="0.8" step="0.01" aria-label="音量"><output id="music-volume-value">80%</output></label>
+    <div id="library">
+      <div class="lib-head">
+        <span>正在播 · <span id="queue-name">全部歌曲</span> <span id="lib-count"></span></span>
+        <span class="lib-hint">長按 ☰ 拖曳排序、左滑移除</span>
+        <button class="chip" id="import-btn" type="button"><svg class="ic" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2"><use href="#i-plus"/></svg> 加入歌曲</button>
+        <input id="import-input" type="file" multiple accept="audio/*,video/mp4,.mp3,.m4a,.mp4,.flac,.ogg,.wav,.aac,.lrc" hidden>
+      </div>
+      <div id="playlist" role="list"></div>
+    </div>
   </div>
-  <div id="library">
+
+  <div class="view side" id="view-lists">
+    <div class="lib-head"><span>歌單</span><span class="lib-hint"></span><button class="chip" id="pl-new" type="button">＋ 新歌單</button></div>
+    <div id="pl-list"></div>
+  </div>
+
+  <div class="view side" id="view-detail">
     <div class="lib-head">
-      <span>曲庫 <span id="lib-count"></span></span>
-      <span class="lib-hint">拖放音樂檔到頁面也可以</span>
-      <button class="chip" id="import-btn" type="button"><svg class="ic" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2"><use href="#i-plus"/></svg> 加入歌曲</button>
-      <input id="import-input" type="file" multiple accept="audio/*,video/mp4,.mp3,.m4a,.mp4,.flac,.ogg,.wav,.aac,.lrc" hidden>
+      <button class="chip" id="pl-back" type="button">‹ 歌單</button>
+      <b id="pl-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e9f8fc"></b>
+      <button class="chip" id="pl-rename" type="button">改名</button>
+      <button class="chip" id="pl-delete" type="button">刪除</button>
     </div>
-    <div id="playlist" role="list"></div>
+    <div class="detail-actions">
+      <button class="chip" id="pl-playall" type="button">▶ 播放整本</button>
+      <button class="chip" id="pl-add" type="button">＋ 從曲庫加入</button>
+      <span id="pl-count" class="lib-hint"></span>
+    </div>
+    <div id="pl-tracks"></div>
   </div>
+
   <audio id="music-audio" preload="metadata" playsinline></audio>
 
   <aside class="music-lyrics-panel" id="music-lyrics" aria-hidden="true" aria-labelledby="music-lyrics-title">
     <div class="music-lyrics-head"><h3 id="music-lyrics-title">完整歌詞</h3><button class="music-lyrics-close" id="music-lyrics-close" type="button" aria-label="關閉歌詞">×</button></div>
     <div class="music-lyrics-scroll" id="music-lyrics-scroll"></div>
   </aside>
+
+  <div id="picker" hidden>
+    <div class="picker-box">
+      <div class="lib-head"><span>從曲庫加入</span><span class="lib-hint"></span><button class="chip" id="picker-done" type="button">完成</button></div>
+      <div id="picker-list"></div>
+    </div>
+  </div>
 </main>
+
+<div id="miniplayer" hidden>
+  <img id="mini-cover" src="images/cover-4kb.jpg" alt="">
+  <span id="mini-title">格莉奇 4KB</span>
+  <button class="music-button" id="mini-play" type="button" aria-label="播放/暫停"><svg class="ic"><use id="mini-play-icon" href="#i-play"/></svg></button>
+</div>
+<nav id="tabbar">
+  <button data-view="player" class="on" type="button">播放器</button>
+  <button data-view="lists" type="button">歌單</button>
+</nav>
 
 <footer>
   <span>格莉奇音樂 · 作者 亞澤</span>
@@ -327,12 +415,13 @@ audio.addEventListener('play',()=>{
   hadError=false;document.body.classList.add('playing');
   playIcon.setAttribute('href','#i-pause');playBtn.title='暫停';playBtn.setAttribute('aria-label','暫停');statusEl.textContent='播放中';
   if('mediaSession'in navigator)navigator.mediaSession.playbackState='playing';
-  startVisualizer();
+  syncMini();startVisualizer();
 });
 audio.addEventListener('pause',()=>{
   document.body.classList.remove('playing');
   playIcon.setAttribute('href','#i-play');playBtn.title='播放';playBtn.setAttribute('aria-label','播放');if(!hadError)statusEl.textContent='已暫停';
   if('mediaSession'in navigator)navigator.mediaSession.playbackState='paused';
+  syncMini();
 });
 // 播完依模式決定下一首;prev/next 鈕永遠走順序(隨機只影響自動接歌)
 audio.addEventListener('ended',()=>{
@@ -431,48 +520,258 @@ function syncLyrics(force){
   }
 }
 
-/* ===== 曲庫 ===== */
-function renderPlaylist(){
-  const list=$('playlist');list.textContent='';
-  $('lib-count').textContent=tracks.length+' 首';
-  tracks.forEach((t,i)=>{
-    const row=document.createElement('div');row.className='trk'+(i===cursor?' now':'');row.setAttribute('role','listitem');
-    const main=document.createElement('button');main.type='button';main.className='trk-main';
-    const im=document.createElement('img');im.src=coverUrl(t);im.alt='';
-    const tt=document.createElement('span');tt.className='trk-t';
-    const b=document.createElement('b');b.textContent=t.title;
-    const sm=document.createElement('small');sm.textContent=t.artist||'';
-    tt.append(b,sm);main.append(im,tt);
-    main.addEventListener('click',()=>playTrack(i,true));
-    const act=document.createElement('span');act.className='trk-act';
-    const up=document.createElement('button');up.type='button';up.textContent='▲';up.title='上移';up.disabled=i===0;
-    up.addEventListener('click',()=>moveTrack(i,-1));
-    const down=document.createElement('button');down.type='button';down.textContent='▼';down.title='下移';down.disabled=i===tracks.length-1;
-    down.addEventListener('click',()=>moveTrack(i,1));
-    act.append(up,down);
-    if(t.kind==='user'){
-      const del=document.createElement('button');del.type='button';del.textContent='✕';del.title='移除';
-      del.addEventListener('click',()=>removeTrack(i));
-      act.append(del);
-    }
-    row.append(main,act);list.appendChild(row);
+/* ===== 曲庫/歌單/佇列 =====
+   library = 全部歌曲(內建 tracks.json + 使用者匯入,順序存 kv 'order')。
+   playlists = [{id,name,ids:[]}] 存 kv 'playlists';queueSrc = null(=全部歌曲)或歌單 id。
+   tracks(播放佇列)在 queueSrc=null 時「就是」library 同一個陣列——佇列排序即曲庫排序。 */
+let library=[],playlists=[],queueSrc=null,currentPl=null;
+
+const byId=id=>library.find(t=>t.id===id);
+const plById=id=>playlists.find(x=>x.id===id);
+function rebuildQueue(){
+  const pl=plById(queueSrc);
+  tracks=pl?pl.ids.map(byId).filter(Boolean):library;
+  $('queue-name').textContent=pl?pl.name:'全部歌曲';
+}
+async function saveOrder(){await kvSet('order',library.map(t=>t.id)).catch(()=>{});}
+async function savePlaylists(){
+  await kvSet('playlists',playlists.map(x=>({id:x.id,name:x.name,ids:[...x.ids]}))).catch(()=>{});
+}
+
+/* --- 通用清單列:點播、☰ 拖曳排序、左滑露出移除 --- */
+function makeRow(t,i,opt){
+  const row=document.createElement('div');row.className='trk';row.dataset.i=i;
+  if(opt.nowId&&t.id===opt.nowId)row.classList.add('now');
+  const slide=document.createElement('div');slide.className='trk-slide';
+  const main=document.createElement('button');main.type='button';main.className='trk-main';
+  const im=document.createElement('img');im.src=coverUrl(t);im.alt='';
+  const tt=document.createElement('span');tt.className='trk-t';
+  const bb=document.createElement('b');bb.textContent=t.title;
+  const sm=document.createElement('small');sm.textContent=t.artist||'';
+  tt.append(bb,sm);main.append(im,tt);
+  main.addEventListener('click',()=>{if(!row._moved)opt.onPlay(Number(row.dataset.i));});
+  slide.appendChild(main);
+  if(opt.onReorder){
+    const h=document.createElement('span');h.className='trk-handle';h.textContent='☰';h.title='拖曳排序';
+    attachDrag(row,h,opt);slide.appendChild(h);
+  }
+  row.appendChild(slide);
+  if(opt.canRemove?opt.canRemove(t):false){
+    const del=document.createElement('button');del.type='button';del.className='trk-del';del.textContent=opt.removeLabel||'移除';
+    del.addEventListener('click',()=>opt.onRemove(Number(row.dataset.i)));
+    row.appendChild(del);
+    attachSwipe(row,slide);
+  }
+  return row;
+}
+function renderRows(listEl,items,opt){
+  listEl.textContent='';
+  items.forEach((t,i)=>listEl.appendChild(makeRow(t,i,opt)));
+}
+/* 左滑刪除:水平位移超過門檻停在 -84px 露出紅鈕;直向捲動不攔 */
+let openRow=null;
+function closeOpenRow(){if(openRow){openRow.classList.remove('open');openRow=null;}}
+function attachSwipe(row,slide){
+  let sx=0,sy=0,dx=0,horiz=null;
+  slide.addEventListener('pointerdown',e=>{
+    if(e.target.closest('.trk-handle'))return;
+    sx=e.clientX;sy=e.clientY;dx=0;horiz=null;row._moved=false;
+    const move=ev=>{
+      const mx=ev.clientX-sx,my=ev.clientY-sy;
+      if(horiz===null&&(Math.abs(mx)>8||Math.abs(my)>8))horiz=Math.abs(mx)>Math.abs(my);
+      if(!horiz)return;
+      row._moved=true;row.classList.add('swiping');
+      dx=Math.max(-110,Math.min(0,mx+(row.classList.contains('open')?-84:0)));
+      slide.style.transform='translateX('+dx+'px)';
+    };
+    const up=()=>{
+      window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);
+      row.classList.remove('swiping');slide.style.transform='';
+      if(horiz){
+        closeOpenRow();
+        if(dx<-50){row.classList.add('open');openRow=row;}
+      }
+      setTimeout(()=>{row._moved=false;},0);
+    };
+    window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);
+  });
+  // 滑動結束瀏覽器仍會合成 click;_moved 尚未清除,靠它分辨「真點擊」與「滑動尾巴」
+  row.querySelector('.trk-main').addEventListener('click',()=>{if(!row._moved)closeOpenRow();},true);
+}
+/* ☰ 拖曳排序:等高列,用滑鼠/手指 Y 推算目標位置 */
+function attachDrag(row,handle,opt){
+  handle.addEventListener('pointerdown',e=>{
+    e.preventDefault();closeOpenRow();
+    const list=row.parentElement,rows=[...list.children],h=row.offsetHeight;
+    const from=rows.indexOf(row);let to=from;
+    row.classList.add('dragging');
+    const move=ev=>{
+      const rect=list.getBoundingClientRect();
+      to=Math.max(0,Math.min(rows.length-1,Math.floor((ev.clientY-rect.top+list.scrollTop)/h)));
+      rows.forEach((r,i)=>{r.classList.toggle('drop-above',i===to&&to<from);r.classList.toggle('drop-below',i===to&&to>from);});
+      if(ev.clientY<rect.top+24)list.scrollTop-=8;else if(ev.clientY>rect.bottom-24)list.scrollTop+=8;
+    };
+    const up=()=>{
+      window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);
+      rows.forEach(r=>r.classList.remove('dragging','drop-above','drop-below'));
+      if(to!==from)opt.onReorder(from,to);
+    };
+    window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);
   });
 }
-async function saveOrder(){await kvSet('order',tracks.map(t=>t.id)).catch(()=>{});}
-function moveTrack(i,d){
-  const j=i+d;if(j<0||j>=tracks.length)return;
-  [tracks[i],tracks[j]]=[tracks[j],tracks[i]];
-  if(cursor===i)cursor=j;else if(cursor===j)cursor=i;
-  saveOrder();renderPlaylist();
+
+/* --- 正在播(佇列)視圖 --- */
+function renderPlaylist(){
+  $('lib-count').textContent=tracks.length+' 首';
+  const inLibrary=!plById(queueSrc);
+  renderRows($('playlist'),tracks,{
+    nowId:tracks[cursor]?.id,
+    onPlay:i=>playTrack(i,true),
+    onReorder:(from,to)=>{
+      const [m]=tracks.splice(from,1);tracks.splice(to,0,m);
+      if(cursor===from)cursor=to;else if(from<cursor&&to>=cursor)cursor--;else if(from>cursor&&to<=cursor)cursor++;
+      if(inLibrary)saveOrder();else{const pl=plById(queueSrc);pl.ids=tracks.map(t=>t.id);savePlaylists();}
+      renderPlaylist();
+    },
+    // 曲庫佇列:內建曲不可移除(tracks.json 會回來);歌單佇列:任何歌都可移出歌單
+    canRemove:t=>inLibrary?t.kind==='user':true,
+    removeLabel:inLibrary?'刪除':'移除',
+    onRemove:i=>inLibrary?removeFromLibrary(tracks[i]):removeFromQueuePlaylist(i),
+  });
 }
-async function removeTrack(i){
-  const t=tracks[i];if(t.kind!=='user')return;
+async function removeFromLibrary(t){
+  if(!t||t.kind!=='user')return;
   await songDel(t.id).catch(()=>{});
   if(t._url)URL.revokeObjectURL(t._url);if(t._cover)URL.revokeObjectURL(t._cover);
-  tracks.splice(i,1);
-  if(i<cursor)cursor--;
-  else if(i===cursor){cursor=Math.min(cursor,tracks.length-1);playTrack(cursor,!audio.paused);}
-  saveOrder();renderPlaylist();
+  library.splice(library.indexOf(t),1);
+  playlists.forEach(pl=>{pl.ids=pl.ids.filter(id=>id!==t.id);});
+  await savePlaylists();await saveOrder();
+  afterQueueMutation(t);
+}
+function removeFromQueuePlaylist(i){
+  const pl=plById(queueSrc);if(!pl)return;
+  const t=tracks[i];pl.ids.splice(i,1);savePlaylists();
+  afterQueueMutation(t,i);
+}
+function afterQueueMutation(removed,removedIdx){
+  const playingId=tracks[cursor]?.id;
+  rebuildQueue();
+  const idx=tracks.findIndex(t=>t.id===playingId);
+  if(idx>=0)cursor=idx;
+  else{cursor=Math.max(0,Math.min(cursor,tracks.length-1));if(tracks.length)playTrack(cursor,!audio.paused);}
+  renderPlaylist();renderDetail();
+}
+
+/* --- 歌單頁 --- */
+const plUid=()=>'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+function renderLists(){
+  const box=$('pl-list');box.textContent='';
+  const mk=(name,count,active,cb)=>{
+    const b=document.createElement('button');b.type='button';b.className='plrow'+(active?' active':'');
+    const ico=document.createElement('span');ico.className='pl-ico';ico.textContent='♪';
+    const tt=document.createElement('span');tt.style.cssText='flex:1;min-width:0';
+    const bb=document.createElement('b');bb.textContent=name;
+    const sm=document.createElement('small');sm.textContent=count+' 首';
+    tt.append(bb,sm);b.append(ico,tt);b.addEventListener('click',cb);box.appendChild(b);
+  };
+  mk('全部歌曲',library.length,queueSrc===null,()=>openDetail(null));
+  playlists.forEach(pl=>mk(pl.name,pl.ids.length,queueSrc===pl.id,()=>openDetail(pl.id)));
+}
+$('pl-new').addEventListener('click',async()=>{
+  const name=prompt('歌單名稱','新歌單');if(!name||!name.trim())return;
+  const pl={id:plUid(),name:name.trim(),ids:[]};
+  playlists.push(pl);await savePlaylists();renderLists();openDetail(pl.id);
+});
+
+/* --- 歌單內容頁(currentPl=null 代表「全部歌曲」) --- */
+function detailItems(){const pl=plById(currentPl);return pl?pl.ids.map(byId).filter(Boolean):library;}
+function openDetail(plId){currentPl=plId;renderDetail();setView('detail');}
+function renderDetail(){
+  if(document.body.dataset.view!=='detail')return;
+  const pl=plById(currentPl);
+  $('pl-name').textContent=pl?pl.name:'全部歌曲';
+  $('pl-rename').hidden=$('pl-delete').hidden=!pl;
+  $('pl-add').hidden=!pl;
+  const items=detailItems();
+  $('pl-count').textContent=items.length+' 首';
+  renderRows($('pl-tracks'),items,{
+    nowId:tracks[cursor]?.id,
+    onPlay:i=>{setQueue(currentPl);playTrack(i,true);setView('player');},
+    onReorder:(from,to)=>{
+      if(pl){const [m]=pl.ids.splice(from,1);pl.ids.splice(to,0,m);savePlaylists();}
+      else{const [m]=library.splice(from,1);library.splice(to,0,m);saveOrder();}
+      if(queueSrc===currentPl){rebuildQueue();renderPlaylist();}
+      renderDetail();
+    },
+    canRemove:t=>pl?true:t.kind==='user',
+    removeLabel:pl?'移除':'刪除',
+    onRemove:i=>{
+      if(pl){pl.ids.splice(i,1);savePlaylists();if(queueSrc===pl.id)afterQueueMutation();else renderDetail();}
+      else removeFromLibrary(detailItems()[i]);
+    },
+  });
+}
+function setQueue(plId){queueSrc=plId;kvSet('queueSrc',plId).catch(()=>{});rebuildQueue();cursor=0;renderPlaylist();renderLists();}
+$('pl-back').addEventListener('click',()=>setView('lists'));
+$('pl-playall').addEventListener('click',()=>{
+  if(!detailItems().length)return;
+  setQueue(currentPl);playTrack(0,true);setView('player');
+});
+$('pl-rename').addEventListener('click',async()=>{
+  const pl=plById(currentPl);if(!pl)return;
+  const name=prompt('歌單名稱',pl.name);if(!name||!name.trim())return;
+  pl.name=name.trim();await savePlaylists();renderDetail();renderLists();if(queueSrc===pl.id)rebuildQueue();
+});
+$('pl-delete').addEventListener('click',async()=>{
+  const pl=plById(currentPl);if(!pl)return;
+  if(!confirm('刪除歌單「'+pl.name+'」?歌曲本身會留在曲庫。'))return;
+  playlists.splice(playlists.indexOf(pl),1);await savePlaylists();
+  if(queueSrc===pl.id)setQueue(null);
+  setView('lists');renderLists();
+});
+
+/* --- 從曲庫加入(選歌器) --- */
+$('pl-add').addEventListener('click',()=>{renderPicker();$('picker').hidden=false;});
+$('picker-done').addEventListener('click',()=>{$('picker').hidden=true;renderDetail();});
+$('picker').addEventListener('click',e=>{if(e.target.id==='picker')$('picker').hidden=true,renderDetail();});
+function renderPicker(){
+  const pl=plById(currentPl);if(!pl)return;
+  const box=$('picker-list');box.textContent='';
+  library.forEach(t=>{
+    const b=document.createElement('button');b.type='button';b.className='plrow';
+    const im=document.createElement('img');im.src=coverUrl(t);im.style.cssText='width:30px;height:30px;border-radius:6px;object-fit:cover;flex:none';
+    const tt=document.createElement('span');tt.style.cssText='flex:1;min-width:0';
+    const bb=document.createElement('b');bb.textContent=t.title;
+    const sm=document.createElement('small');sm.textContent=t.artist||'';
+    tt.append(bb,sm);
+    const st=document.createElement('span');st.className='pk-state';
+    const sync=()=>{st.textContent=pl.ids.includes(t.id)?'✓ 已加入':'＋';};sync();
+    b.append(im,tt,st);
+    b.addEventListener('click',()=>{
+      const k=pl.ids.indexOf(t.id);
+      if(k>=0)pl.ids.splice(k,1);else pl.ids.push(t.id);
+      savePlaylists();sync();if(queueSrc===pl.id){rebuildQueue();renderPlaylist();}
+    });
+    box.appendChild(b);
+  });
+}
+
+/* --- 視圖導覽 + 迷你播放列 --- */
+function setView(v){
+  document.body.dataset.view=v;
+  document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.view===(v==='detail'?'lists':v)));
+  if(v==='lists')renderLists();
+  if(v==='detail')renderDetail();
+  $('miniplayer').hidden=v==='player';
+  closeOpenRow();
+}
+document.querySelectorAll('#tabbar button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+$('miniplayer').addEventListener('click',e=>{if(!e.target.closest('#mini-play'))setView('player');});
+$('mini-play').addEventListener('click',toggle);
+function syncMini(){
+  const t=tracks[cursor];if(!t)return;
+  $('mini-cover').src=coverUrl(t);$('mini-title').textContent=t.title;
+  $('mini-play-icon').setAttribute('href',audio.paused?'#i-play':'#i-pause');
 }
 
 /* ===== 匯入:選檔或拖放;.lrc 依主檔名配對使用者歌曲 ===== */
@@ -506,15 +805,15 @@ async function importFiles(files){
       lrc:tag.lyrics||null,addedAt:Date.now(),
     };
     try{await songPut(song);}catch(e){statusEl.textContent='儲存失敗(空間不足?)';console.warn(e);continue;}
-    tracks.push(song);added++;
+    library.push(song);added++;
   }
-  if(added){await saveOrder();renderPlaylist();}
+  if(added){await saveOrder();rebuildQueue();renderPlaylist();}
   if(added||skipped)statusEl.textContent=(added?'已加入 '+added+' 首':'')+(skipped?(added?'，':'')+'略過 '+skipped+' 個不支援的檔案':'');
 }
 async function attachLrc(f){
   const text=await f.text();
   const key=base(f.name).toLowerCase();
-  let t=tracks.find(x=>x.kind==='user'&&(base(x.name||'').toLowerCase()===key||x.title.toLowerCase()===key));
+  let t=library.find(x=>x.kind==='user'&&(base(x.name||'').toLowerCase()===key||x.title.toLowerCase()===key));
   if(!t&&tracks[cursor]?.kind==='user')t=tracks[cursor];
   if(!t){statusEl.textContent='找不到同名歌曲可掛歌詞';return;}
   t.lrc=text;
@@ -544,13 +843,14 @@ function playTrack(i,autoplay){
   $('music-title').textContent=t.title;$('music-artist').textContent=(t.artist||'')+(t.album?' · '+t.album:'');
   $('music-cover').src=coverUrl(t);
   audio.src=trackUrl(t);progress.max=t.duration||1;updateProgress();
-  renderPlaylist();renderLyrics(t);setMediaSession(t);
+  renderPlaylist();renderLyrics(t);setMediaSession(t);syncMini();
   kvSet('last',t.id).catch(()=>{});
   if(autoplay)toggle();
 }
 
 /* ===== 啟動 ===== */
 (async()=>{
+  document.body.dataset.view='player';
   let builtin=[];
   try{builtin=await(await fetch('tracks.json')).json();}
   catch(e){statusEl.textContent='曲庫載入失敗';}
@@ -558,16 +858,18 @@ function playTrack(i,autoplay){
   let user=[];
   try{user=await songsAll();}catch(e){console.warn('本機曲庫讀取失敗',e);}
   user.sort((a,b)=>a.addedAt-b.addedAt);
-  tracks=[...builtin,...user];
-  // 套用存過的排序;新歌(不在舊排序裡的)接在後面
+  library=[...builtin,...user];
   try{
     const order=await kvGet('order');
     if(Array.isArray(order)&&order.length){
       const pos=new Map(order.map((id,i)=>[id,i]));
-      tracks.sort((a,b)=>(pos.has(a.id)?pos.get(a.id):1e9)-(pos.has(b.id)?pos.get(b.id):1e9));
+      library.sort((a,b)=>(pos.has(a.id)?pos.get(a.id):1e9)-(pos.has(b.id)?pos.get(b.id):1e9));
     }
+    const pls=await kvGet('playlists');if(Array.isArray(pls))playlists=pls;
+    const qs=await kvGet('queueSrc');if(qs&&plById(qs))queueSrc=qs;
     const m=await kvGet('mode');if(m&&MODES[m])mode=m;
   }catch(e){}
+  rebuildQueue();
   setMode(mode);
   // localStorage 沒存過會回 null，Number(null)===0 會把音量靜音；null 要走 NaN 進 fallback
   let saved=NaN;try{const raw=localStorage.getItem('glitchmusic:volume');saved=raw===null?NaN:Number(raw);}catch(e){}
@@ -575,7 +877,7 @@ function playTrack(i,autoplay){
   volume.value=audio.volume;volumeValue.textContent=Math.round(audio.volume*100)+'%';rangeFill(volume,audio.volume);rangeFill(progress,0);
   let start=0;
   try{const last=await kvGet('last');const i=tracks.findIndex(t=>t.id===last);if(i>=0)start=i;}catch(e){}
-  playTrack(start,false);
+  if(tracks.length)playTrack(start,false);else renderPlaylist();
   startVisualizer();
 })();
 
