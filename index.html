@@ -299,7 +299,7 @@
   </div>
 
   <div class="view side" id="view-radio">
-    <div class="lib-head"><span>電台</span><span class="lib-hint">選一台就一直聽,不輪播</span><button class="chip" id="radio-add" type="button">＋ 加電台</button></div>
+    <div class="lib-head"><span>電台</span><span class="lib-hint">選一台就一直聽,不輪播</span><button class="chip" id="radio-restore" type="button">復原預設</button><button class="chip" id="radio-add" type="button">＋ 加電台</button></div>
     <div id="radio-list"></div>
   </div>
 
@@ -1025,6 +1025,13 @@ function renderRadio(){
     },
   });
 }
+$('radio-restore').addEventListener('click',async()=>{
+  // 把預設台裡缺的補回(按 src 去重):自己加的台不受影響,全刪光也救得回
+  let added=0;
+  DEFAULT_STATIONS.forEach(d=>{if(!stations.some(x=>x.src===d.src)){stations.push({...d});added++;}});
+  if(added){await saveStations();renderRadio();statusEl.textContent='已復原 '+added+' 台預設電台';}
+  else statusEl.textContent='預設電台都在,不用復原';
+});
 $('radio-add').addEventListener('click',async()=>{
   const url=prompt('電台串流網址(直連 mp3/aac)','https://');
   if(!url||!/^https?:\/\//i.test(url.trim()))return;
