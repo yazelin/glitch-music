@@ -189,6 +189,8 @@
   footer a{color:#9fc3d2;text-decoration:none}
   footer a:hover{color:#dff5fd}
   body.embedded header .chip:not(#offline-badge),body.embedded footer{display:none}
+  /* 電台模式:播放器頁不顯示歌單佇列——電台跟歌單是兩回事 */
+  body.radio-on #library{display:none}
 
   @keyframes music-orbit{to{transform:rotate(360deg)}}
   @keyframes music-live{50%{opacity:.25}}
@@ -907,7 +909,7 @@ $('radio-add').addEventListener('click',async()=>{
 // 電台模式:選一台就一直聽;不輪播、不上一首/下一首,轉台=回電台頁點別台
 function playStation(i){
   const st=stations[i];if(!st)return;
-  radioMode=true;currentStation=i;
+  radioMode=true;currentStation=i;document.body.classList.add('radio-on');
   $('music-title').textContent=st.name;$('music-artist').textContent=(st.desc||'')+' · 24/7 電台';
   $('music-cover').src='images/icon-192.png';
   if(audio!==audioNet){audio.pause();audio=audioNet;audio.volume=Number(volume.value);}
@@ -1043,7 +1045,7 @@ function setMediaSession(track){
   Object.entries(acts).forEach(([a,h])=>{try{navigator.mediaSession.setActionHandler(a,h);}catch(e){}});
 }
 function playTrack(i,autoplay){
-  radioMode=false;currentStation=-1;
+  radioMode=false;currentStation=-1;document.body.classList.remove('radio-on');
   cursor=i;const t=tracks[i];if(!t)return;
   $('music-title').textContent=t.title;$('music-artist').textContent=(t.artist||'')+(t.album?' · '+t.album:'');
   $('music-cover').src=coverUrl(t);
