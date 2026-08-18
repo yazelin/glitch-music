@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>格莉奇音樂 · Glitch Music</title>
+<meta name="description" content="只有 4KB 記憶體的 AI 機器人女孩 VTuber 格莉奇的專屬音樂播放器。可安裝成 App、離線播放、鎖屏控制。">
+<link rel="canonical" href="https://yazelin.github.io/glitch-music/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="格莉奇音樂 · Glitch Music">
+<meta property="og:description" content="格莉奇的專屬音樂播放器：可安裝、離線播放、螢幕關閉繼續唱。">
+<meta property="og:url" content="https://yazelin.github.io/glitch-music/">
+<meta property="og:image" content="https://yazelin.github.io/glitch-music/images/icon-512.png">
+<meta name="theme-color" content="#090f14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="images/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="images/icon-192.png">
+<style>
+  :root{
+    --cy:#25c2e8; --mint:#7cf3c0; --purple:#b78bff;
+    --bg:#04080c; --hair:rgba(255,255,255,.07); --mute:#8a9aa3;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
+  body{background:#090f14;color:#e9f8fc;font:15px/1.6 system-ui,-apple-system,"Noto Sans TC",sans-serif;
+    display:flex;flex-direction:column}
+  button{font:inherit}
+
+  header{flex:none;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--hair);background:#0b1218}
+  header img{width:26px;height:26px;border-radius:7px}
+  header b{font-size:.92rem;letter-spacing:.02em}
+  header .sp{flex:1}
+  .chip{border:1px solid rgba(37,194,232,.25);border-radius:999px;background:rgba(37,194,232,.08);color:var(--cy);
+    padding:3px 10px;font-size:.68rem;text-decoration:none;cursor:pointer}
+  .chip:hover{background:rgba(37,194,232,.16)}
+  #offline-badge{border-color:rgba(124,243,192,.28);color:var(--mint);background:rgba(124,243,192,.07);display:none;cursor:default}
+  #install-btn{display:none}
+
+  main{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+
+  .music-visual{--music-energy:.08;--music-bass:.05;--music-hue:190;position:relative;flex:1;min-height:230px;overflow:hidden;
+    display:grid;place-items:center;isolation:isolate;background:
+    radial-gradient(circle at 50% 45%,hsla(var(--music-hue),85%,55%,calc(.11 + var(--music-energy)*.2)),transparent 43%),
+    linear-gradient(145deg,#09151d 0%,#100b1b 55%,#061116 100%)}
+  .music-visual::before{content:"";position:absolute;inset:-45%;z-index:-2;opacity:calc(.18 + var(--music-energy)*.65);
+    background:conic-gradient(from 0deg,transparent 0 18%,rgba(37,194,232,.3) 26%,transparent 35% 55%,rgba(183,139,255,.3) 66%,transparent 76% 100%);
+    animation:music-orbit 12s linear infinite;filter:blur(30px)}
+  .music-visual::after{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;opacity:.18;
+    background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 4px)}
+  .music-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:-1}
+  .music-artwork{position:relative;width:min(190px,43vw);aspect-ratio:1;border-radius:22px;padding:5px;
+    background:linear-gradient(135deg,rgba(124,243,192,.75),rgba(37,194,232,.35),rgba(183,139,255,.8));
+    box-shadow:0 18px 45px rgba(0,0,0,.55),0 0 calc(22px + var(--music-bass)*35px) hsla(var(--music-hue),90%,62%,calc(.2 + var(--music-energy)*.45));
+    transform:scale(calc(1 + var(--music-bass)*.045));transition:transform .08s linear;z-index:2}
+  .music-artwork img{display:block;width:100%;height:100%;object-fit:cover;border-radius:17px;background:#05080b}
+  .music-artwork::after{content:"4KB";position:absolute;right:12px;bottom:11px;padding:2px 7px;border-radius:6px;
+    color:#e9fbff;background:rgba(5,9,13,.74);border:1px solid rgba(124,243,192,.28);font:700 .62rem/1.5 ui-monospace,monospace;letter-spacing:.12em}
+  .music-now{position:absolute;left:18px;top:15px;z-index:3;color:rgba(230,246,251,.72);font-size:.67rem;letter-spacing:.14em;text-transform:uppercase}
+  .music-live{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:7px;background:var(--mint);box-shadow:0 0 10px var(--mint)}
+  .playing .music-live{animation:music-live 1s steps(2) infinite}
+  body:not(.playing) .music-visual::before{animation-play-state:paused;opacity:.12}
+
+  .music-controls{flex:none;padding:15px 22px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--hair);background:linear-gradient(180deg,#171c21,#111519)}
+  .music-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:13px}
+  .music-title{color:#e9f8fc;font-size:1rem;font-weight:750;line-height:1.35}
+  .music-artist{color:#72818a;font-size:.72rem;margin-top:2px}
+  .music-title-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}
+  .music-status{color:var(--cy);font-size:.66rem;border:1px solid rgba(37,194,232,.22);border-radius:999px;padding:2px 8px;background:rgba(37,194,232,.08)}
+  .music-lyrics-toggle{border:1px solid rgba(183,139,255,.25);border-radius:999px;background:rgba(183,139,255,.08);color:#cdb5f7;padding:3px 9px;font-size:.66rem;cursor:pointer}
+  .music-lyrics-toggle:hover,.music-lyrics-toggle[aria-expanded=true]{background:rgba(183,139,255,.17);color:#eee4ff}
+  .music-time{display:flex;align-items:center;justify-content:space-between;color:#6f7b82;font-size:.66rem;font-variant-numeric:tabular-nums;margin-top:4px}
+  .music-range{width:100%;height:5px;appearance:none;border:0;border-radius:999px;outline:none;cursor:pointer;
+    background:linear-gradient(90deg,var(--cy) 0 var(--range-value,0%),rgba(255,255,255,.1) var(--range-value,0%) 100%)}
+  .music-range::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;border:2px solid #dffaff;background:var(--cy);box-shadow:0 0 10px rgba(37,194,232,.55)}
+  .music-range::-moz-range-thumb{width:10px;height:10px;border-radius:50%;border:2px solid #dffaff;background:var(--cy);box-shadow:0 0 10px rgba(37,194,232,.55)}
+  .music-buttons{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px;margin:13px auto 10px;width:min(250px,100%)}
+  .music-button{display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:50%;background:transparent;color:#9fadb4;cursor:pointer;justify-self:center;transition:.15s}
+  .music-button:hover{color:#fff;background:rgba(255,255,255,.07);transform:scale(1.07)}
+  .music-button .ic{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .music-button.primary{width:54px;height:54px;color:#07151b;background:linear-gradient(135deg,var(--mint),var(--cy));box-shadow:0 7px 20px rgba(37,194,232,.25)}
+  .music-button.primary:hover{color:#07151b;background:linear-gradient(135deg,#a1ffd9,#55daf5)}
+  .music-button.primary .ic{width:25px;height:25px;fill:currentColor;stroke:none}
+  .music-volume{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:9px;color:#718088;font-size:.66rem}
+  .music-volume .ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .music-volume .music-range{height:4px}
+  .music-volume output{width:34px;text-align:right;font-variant-numeric:tabular-nums}
+
+  .music-lyrics-panel{position:absolute;inset:0 0 0 auto;z-index:8;width:min(350px,88%);display:flex;flex-direction:column;
+    background:rgba(10,14,19,.97);border-left:1px solid rgba(183,139,255,.22);box-shadow:-18px 0 45px rgba(0,0,0,.52);
+    transform:translateX(102%);visibility:hidden;transition:transform .25s ease,visibility 0s linear .25s}
+  .music-lyrics-panel.show{transform:translateX(0);visibility:visible;transition-delay:0s}
+  .music-lyrics-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--hair)}
+  .music-lyrics-head h3{margin:0;color:var(--purple);font-size:.9rem}
+  .music-lyrics-close{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:transparent;color:#8e99a0;font-size:1rem;cursor:pointer}
+  .music-lyrics-close:hover{color:#fff;background:rgba(255,255,255,.07)}
+  .music-lyrics-scroll{flex:1;min-height:0;overflow-y:auto;padding:13px 18px 28px;user-select:text;
+    scrollbar-width:thin;scrollbar-color:rgba(143,216,238,.34) transparent}
+  .music-lyrics-section{padding:11px 0 14px;border-bottom:1px solid rgba(255,255,255,.045)}
+  .music-lyrics-section:last-child{border-bottom:0}
+  .music-lyrics-label{display:inline-block;margin-bottom:6px;color:var(--cy);font:700 .61rem/1.4 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}
+  .music-lyrics-section p{margin:0;color:#bdc9ce;font-size:.76rem;line-height:1.85;white-space:pre-line}
+  .music-lyrics-section.chorus p{color:#d9e9ee}
+
+  #playlist{flex:none;max-height:30dvh;overflow-y:auto;border-top:1px solid var(--hair);background:#0d1319}
+  #playlist:empty{display:none}
+  #playlist button{display:flex;width:100%;align-items:center;gap:10px;padding:9px 16px;border:0;background:transparent;color:#aebbc2;cursor:pointer;text-align:left;font-size:.8rem}
+  #playlist button:hover{background:rgba(255,255,255,.05)}
+  #playlist button.now{color:var(--mint)}
+  #playlist img{width:30px;height:30px;border-radius:6px}
+
+  footer{flex:none;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
+    padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--hair);background:#0b1218;font-size:.7rem;color:var(--mute)}
+  footer a{color:#9fc3d2;text-decoration:none}
+  footer a:hover{color:#dff5fd}
+  body.embedded header .chip:not(#offline-badge),body.embedded footer{display:none}
+
+  @keyframes music-orbit{to{transform:rotate(360deg)}}
+  @keyframes music-live{50%{opacity:.25}}
+  @media(prefers-reduced-motion:reduce){.music-visual::before,.playing .music-live{animation:none}}
+  @media(max-width:640px){
+    .music-controls{padding:13px 16px calc(18px + env(safe-area-inset-bottom))}
+    .music-artwork{width:min(160px,42vw)}
+    .music-title-row{gap:8px}.music-title-actions{gap:4px}
+    .music-lyrics-panel{width:92%}
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></symbol>
+  <symbol id="i-rewind" viewBox="0 0 24 24"><path d="M12.5 8 7 12l5.5 4M17.5 8 12 12l5.5 4"/></symbol>
+  <symbol id="i-forward" viewBox="0 0 24 24"><path d="M6.5 8 12 12l-5.5 4M11.5 8 17 12l-5.5 4"/></symbol>
+  <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zM16.5 8.5a5 5 0 0 1 0 7"/></symbol>
+</svg>
+
+<header>
+  <img src="images/icon-192.png" alt="">
+  <b>格莉奇音樂</b>
+  <span class="sp"></span>
+  <span class="chip" id="offline-badge">已可離線</span>
+  <button class="chip" id="install-btn" type="button">安裝 App</button>
+  <a class="chip" href="https://yazelin.github.io/ai-brain-site/" target="_blank" rel="noopener">格莉奇OS</a>
+</header>
+
+<main>
+  <div class="music-visual" id="music-visual">
+    <span class="music-now"><i class="music-live"></i>Glitch audio core</span>
+    <canvas class="music-canvas" id="music-canvas" aria-hidden="true"></canvas>
+    <div class="music-artwork"><img id="music-cover" src="images/cover-4kb.jpg" alt="單曲封面"></div>
+  </div>
+  <div class="music-controls">
+    <div class="music-title-row">
+      <div><div class="music-title" id="music-title">格莉奇 4KB</div><div class="music-artist" id="music-artist">yaze_lin_j303</div></div>
+      <div class="music-title-actions"><span class="music-status" id="music-status">準備播放</span><button class="music-lyrics-toggle" id="music-lyrics-toggle" type="button" aria-expanded="false" aria-controls="music-lyrics">歌詞</button></div>
+    </div>
+    <input class="music-range" id="music-progress" type="range" min="0" max="195" value="0" step="0.1" aria-label="播放進度">
+    <div class="music-time"><span id="music-current">0:00</span><span id="music-duration">0:00</span></div>
+    <div class="music-buttons">
+      <button class="music-button" id="music-back" type="button" title="倒退 10 秒" aria-label="倒退 10 秒"><svg class="ic"><use href="#i-rewind"/></svg></button>
+      <button class="music-button primary" id="music-play" type="button" title="播放" aria-label="播放"><svg class="ic"><use id="music-play-icon" href="#i-play"/></svg></button>
+      <button class="music-button" id="music-forward" type="button" title="快轉 10 秒" aria-label="快轉 10 秒"><svg class="ic"><use href="#i-forward"/></svg></button>
+    </div>
+    <label class="music-volume" for="music-volume"><svg class="ic"><use href="#i-volume"/></svg><input class="music-range" id="music-volume" type="range" min="0" max="1" value="0.8" step="0.01" aria-label="音量"><output id="music-volume-value">80%</output></label>
+  </div>
+  <div id="playlist" role="list"></div>
+  <audio id="music-audio" preload="metadata" playsinline></audio>
+
+  <aside class="music-lyrics-panel" id="music-lyrics" aria-hidden="true" aria-labelledby="music-lyrics-title">
+    <div class="music-lyrics-head"><h3 id="music-lyrics-title">完整歌詞</h3><button class="music-lyrics-close" id="music-lyrics-close" type="button" aria-label="關閉歌詞">×</button></div>
+    <div class="music-lyrics-scroll" id="music-lyrics-scroll"></div>
+  </aside>
+</main>
+
+<footer>
+  <span>格莉奇音樂 · 作者 亞澤</span>
+  <a href="https://github.com/yazelin/glitch-music" target="_blank" rel="noopener">GitHub</a>
+  <a href="https://www.facebook.com/yaze.lin.gm" target="_blank" rel="noopener">Facebook</a>
+  <a href="https://buymeacoffee.com/yazelin" target="_blank" rel="noopener">請我喝咖啡</a>
+</footer>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const audio=$('music-audio'),visual=$('music-visual'),canvas=$('music-canvas');
+const playBtn=$('music-play'),playIcon=$('music-play-icon');
+const progress=$('music-progress'),curEl=$('music-current'),durEl=$('music-duration');
+const volume=$('music-volume'),volumeValue=$('music-volume-value'),statusEl=$('music-status');
+const lyricsPanel=$('music-lyrics'),lyricsToggle=$('music-lyrics-toggle');
+// iOS 背景會掛起 AudioContext；createMediaElementSource 一接就拆不回來，聲音會跟著斷。
+// 所以 iOS 完全不接 audio graph，頻譜走 draw() 裡的無資料 fallback 動畫——背景播放優先於視覺。
+const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+if(window!==window.top)document.body.classList.add('embedded');
+
+let tracks=[],cursor=0;
+let ctx2d=null,actx=null,analyser=null,freq=null,wave=null,frame=0,hadError=false,volumeTimer=0;
+let particles=[];
+const reducedMotion=matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+const fmt=s=>{if(!Number.isFinite(s)||s<0)return'0:00';return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');};
+function rangeFill(input,value){
+  const min=Number(input.min)||0,max=Number(input.max)||1,pct=max>min?(Number(value)-min)/(max-min)*100:0;
+  input.style.setProperty('--range-value',Math.max(0,Math.min(100,pct))+'%');
+}
+function updateProgress(){
+  const d=Number.isFinite(audio.duration)?audio.duration:(tracks[cursor]?.duration||0);
+  progress.max=d||1;progress.value=Math.min(audio.currentTime||0,d||1);
+  curEl.textContent=fmt(audio.currentTime);durEl.textContent=fmt(d);rangeFill(progress,progress.value);
+  if('mediaSession'in navigator&&d>0&&Number.isFinite(audio.currentTime)){
+    try{navigator.mediaSession.setPositionState({duration:d,playbackRate:audio.playbackRate,position:Math.min(audio.currentTime,d)});}catch(e){}
+  }
+}
+async function ensureGraph(){
+  if(IOS)return;
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+  if(!actx)actx=new AC();
+  if(actx.state==='suspended')await actx.resume();
+  if(!analyser){
+    analyser=actx.createAnalyser();analyser.fftSize=512;analyser.smoothingTimeConstant=.82;
+    freq=new Uint8Array(analyser.frequencyBinCount);wave=new Uint8Array(analyser.fftSize);
+    const src=actx.createMediaElementSource(audio);src.connect(analyser);analyser.connect(actx.destination);
+  }
+}
+async function toggle(){
+  if(audio.paused){
+    hadError=false;statusEl.textContent='讀取中…';
+    // play() 與 AudioContext.resume() 都要直接發生在同一次使用者點擊中；不可先 await 其中之一。
+    const playback=audio.play(),graph=ensureGraph();
+    try{await playback;}
+    catch(e){statusEl.textContent='無法播放';console.warn('playback failed',e);return;}
+    try{await graph;}
+    catch(e){console.warn('visualizer unavailable; native audio continues',e);}
+  }else audio.pause();
+}
+function setLyrics(show){
+  lyricsPanel.classList.toggle('show',show);lyricsPanel.setAttribute('aria-hidden',String(!show));lyricsToggle.setAttribute('aria-expanded',String(show));
+}
+lyricsToggle.addEventListener('click',()=>setLyrics(!lyricsPanel.classList.contains('show')));
+$('music-lyrics-close').addEventListener('click',()=>setLyrics(false));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&lyricsPanel.classList.contains('show'))setLyrics(false);});
+playBtn.addEventListener('click',toggle);
+$('music-back').addEventListener('click',()=>{audio.currentTime=Math.max(0,audio.currentTime-10);updateProgress();});
+$('music-forward').addEventListener('click',()=>{audio.currentTime=Math.min(audio.duration||progress.max,audio.currentTime+10);updateProgress();});
+progress.addEventListener('input',()=>{audio.currentTime=Number(progress.value);updateProgress();});
+volume.addEventListener('input',()=>{
+  audio.volume=Number(volume.value);volumeValue.textContent=Math.round(audio.volume*100)+'%';rangeFill(volume,audio.volume);
+  clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>{try{localStorage.setItem('glitchmusic:volume',String(audio.volume));}catch(e){}},180);
+});
+audio.addEventListener('loadedmetadata',updateProgress);
+audio.addEventListener('durationchange',updateProgress);
+audio.addEventListener('timeupdate',updateProgress);
+audio.addEventListener('waiting',()=>{statusEl.textContent='讀取中…';});
+audio.addEventListener('playing',()=>{statusEl.textContent='播放中';});
+audio.addEventListener('error',()=>{
+  hadError=true;statusEl.textContent='音訊載入失敗，請再按一次播放';
+  setTimeout(()=>{if(hadError&&audio.paused)audio.load();},0);
+});
+audio.addEventListener('play',()=>{
+  hadError=false;document.body.classList.add('playing');
+  playIcon.setAttribute('href','#i-pause');playBtn.title='暫停';playBtn.setAttribute('aria-label','暫停');statusEl.textContent='播放中';
+  if('mediaSession'in navigator)navigator.mediaSession.playbackState='playing';
+  startVisualizer();
+});
+audio.addEventListener('pause',()=>{
+  document.body.classList.remove('playing');
+  playIcon.setAttribute('href','#i-play');playBtn.title='播放';playBtn.setAttribute('aria-label','播放');if(!hadError)statusEl.textContent='已暫停';
+  if('mediaSession'in navigator)navigator.mediaSession.playbackState='paused';
+});
+// 播完接下一首；單曲清單時 wrap 回自己＝單曲循環
+audio.addEventListener('ended',()=>{playTrack((cursor+1)%tracks.length,true);});
+
+function band(data,start,end){let t=0;for(let i=start;i<end;i++)t+=data[i]||0;return t/Math.max(1,end-start)/255;}
+function startVisualizer(){if(!frame)frame=requestAnimationFrame(draw);}
+function draw(now){
+  frame=0;if(document.visibilityState!=='visible')return;
+  const rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height){frame=requestAnimationFrame(draw);return;}
+  const dpr=Math.min(devicePixelRatio||1,2),width=rect.width,height=rect.height;
+  if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}
+  const ctx=ctx2d||(ctx2d=canvas.getContext('2d'));ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
+  let energy=.035+Math.sin(now/900)*.008,bass=.025,treble=.02;
+  if(analyser&&!audio.paused){
+    analyser.getByteFrequencyData(freq);analyser.getByteTimeDomainData(wave);
+    bass=band(freq,1,18);energy=band(freq,4,110);treble=band(freq,90,210);
+  }else if(!audio.paused){
+    // iOS／無 Web Audio：用時間函數模擬能量，畫面照動、聲音走原生 <audio>
+    energy=.16+Math.sin(now/460)*.07;bass=.2+Math.sin(now/620)*.14;treble=.12+Math.sin(now/300)*.08;
+  }
+  const hue=Math.round(180+treble*105);visual.style.setProperty('--music-energy',energy.toFixed(3));visual.style.setProperty('--music-bass',Math.max(0,bass).toFixed(3));visual.style.setProperty('--music-hue',hue);
+  const cx=width/2,cy=height*.5,minSide=Math.min(width,height),inner=Math.min(minSide*.345,108),bars=72;
+  ctx.save();ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<bars;i++){
+    const amp=analyser&&!audio.paused?(freq[Math.floor(i/bars*freq.length*.72)]||0)/255:(audio.paused?.025:.1)+.018*Math.sin(now/420+i*.7)+(audio.paused?0:Math.max(0,energy-.1)*Math.abs(Math.sin(i*2.7+now/240))*.8);
+    const angle=-Math.PI/2+i/bars*Math.PI*2,length=4+amp*(20+energy*28),x1=cx+Math.cos(angle)*inner,y1=cy+Math.sin(angle)*inner;
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(cx+Math.cos(angle)*(inner+length),cy+Math.sin(angle)*(inner+length));
+    ctx.strokeStyle=`hsla(${174+i/bars*116},90%,64%,${.22+amp*.68})`;ctx.lineWidth=1.4+amp*2.2;ctx.lineCap='round';ctx.stroke();
+  }
+  ctx.beginPath();ctx.arc(cx,cy,inner-6+bass*9,0,Math.PI*2);ctx.strokeStyle=`hsla(${hue},95%,66%,${.16+energy*.28})`;ctx.lineWidth=2+bass*5;ctx.stroke();
+  if(wave&&analyser){
+    ctx.beginPath();for(let i=0;i<wave.length;i+=2){const x=i/(wave.length-1)*width,y=height*.82+(wave[i]-128)/128*(12+energy*22);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    const g=ctx.createLinearGradient(0,0,width,0);g.addColorStop(0,'rgba(37,194,232,0)');g.addColorStop(.25,`rgba(37,194,232,${.2+energy*.45})`);g.addColorStop(.75,`rgba(183,139,255,${.2+energy*.45})`);g.addColorStop(1,'rgba(183,139,255,0)');ctx.strokeStyle=g;ctx.lineWidth=1.3;ctx.stroke();
+  }
+  if(!reducedMotion&&!audio.paused&&bass>.38&&particles.length<48&&Math.random()<bass*.45){
+    const angle=Math.random()*Math.PI*2;particles.push({angle,r:inner+8,speed:.45+Math.random()*1.1,size:1+Math.random()*2.2,life:1,hue:170+Math.random()*120});
+  }
+  particles=particles.filter(p=>p.life>.02);
+  particles.forEach(p=>{p.r+=p.speed*(1+energy);p.life-=.012+p.speed*.004;const x=cx+Math.cos(p.angle)*p.r,y=cy+Math.sin(p.angle)*p.r;ctx.beginPath();ctx.arc(x,y,p.size,0,Math.PI*2);ctx.fillStyle=`hsla(${p.hue},95%,70%,${p.life*.75})`;ctx.fill();});
+  ctx.restore();frame=requestAnimationFrame(draw);
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!audio.paused)startVisualizer();});
+
+/* ===== 播放清單 ===== */
+function renderLyrics(track){
+  const box=$('music-lyrics-scroll');box.textContent='';
+  $('music-lyrics-title').textContent=track.title+' · 完整歌詞';
+  (track.lyrics||[]).forEach(sec=>{
+    const s=document.createElement('section');s.className='music-lyrics-section'+(sec.chorus?' chorus':'');
+    const l=document.createElement('span');l.className='music-lyrics-label';l.textContent=sec.label;
+    const p=document.createElement('p');p.textContent=sec.text;
+    s.append(l,p);box.appendChild(s);
+  });
+  lyricsToggle.style.display=(track.lyrics||[]).length?'':'none';
+}
+function renderPlaylist(){
+  const list=$('playlist');list.textContent='';
+  if(tracks.length<2)return;
+  tracks.forEach((t,i)=>{
+    const b=document.createElement('button');b.type='button';b.setAttribute('role','listitem');
+    if(i===cursor)b.classList.add('now');
+    const im=document.createElement('img');im.src=t.cover;im.alt='';
+    const sp=document.createElement('span');sp.textContent=t.title;
+    b.append(im,sp);b.addEventListener('click',()=>playTrack(i,true));list.appendChild(b);
+  });
+}
+function setMediaSession(track){
+  if(!('mediaSession'in navigator))return;
+  navigator.mediaSession.metadata=new MediaMetadata({title:track.title,artist:track.artist,album:track.album||'',
+    artwork:[{src:new URL(track.cover,location.href).href,sizes:'360x360',type:'image/jpeg'}]});
+  const acts={
+    play:()=>{if(audio.paused)toggle();},
+    pause:()=>{if(!audio.paused)audio.pause();},
+    seekbackward:d=>{audio.currentTime=Math.max(0,audio.currentTime-(d.seekOffset||10));},
+    seekforward:d=>{audio.currentTime=Math.min(audio.duration||progress.max,audio.currentTime+(d.seekOffset||10));},
+    seekto:d=>{if(d.seekTime!=null)audio.currentTime=d.seekTime;},
+  };
+  if(tracks.length>1){
+    acts.previoustrack=()=>playTrack((cursor-1+tracks.length)%tracks.length,true);
+    acts.nexttrack=()=>playTrack((cursor+1)%tracks.length,true);
+  }
+  Object.entries(acts).forEach(([a,h])=>{try{navigator.mediaSession.setActionHandler(a,h);}catch(e){}});
+}
+function playTrack(i,autoplay){
+  cursor=i;const t=tracks[i];if(!t)return;
+  $('music-title').textContent=t.title;$('music-artist').textContent=t.artist+(t.album?' · '+t.album:'');
+  $('music-cover').src=t.cover;
+  audio.src=t.src;progress.max=t.duration||1;updateProgress();
+  renderPlaylist();renderLyrics(t);setMediaSession(t);
+  if(autoplay)toggle();
+}
+(async()=>{
+  try{
+    const r=await fetch('tracks.json');tracks=await r.json();
+  }catch(e){statusEl.textContent='曲庫載入失敗';return;}
+  let saved=NaN;try{saved=Number(localStorage.getItem('glitchmusic:volume'));}catch(e){}
+  audio.volume=Number.isFinite(saved)&&saved>=0&&saved<=1?saved:.8;
+  volume.value=audio.volume;volumeValue.textContent=Math.round(audio.volume*100)+'%';rangeFill(volume,audio.volume);rangeFill(progress,0);
+  playTrack(0,false);
+  startVisualizer();
+})();
+
+/* ===== PWA：SW 註冊＋離線徽章（實查）＋安裝鈕（三態） ===== */
+if('serviceWorker'in navigator){
+  navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW 註冊失敗',e));
+  navigator.serviceWorker.addEventListener('message',ev=>{
+    const d=ev.data||{};
+    if(d.type==='offline-verified'&&d.ok)$('offline-badge').style.display='';
+  });
+  // 徽章不准自我宣告：等 SW 就緒後請它逐項 cache.match 實查，一項不缺才亮
+  navigator.serviceWorker.ready.then(reg=>{
+    const ask=()=>reg.active&&reg.active.postMessage({type:'verify-offline'});
+    ask();setTimeout(ask,15000);setTimeout(ask,60000);
+  });
+}
+let deferredPrompt=null;const INSTALL_KEY='glitchmusic:install';
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();deferredPrompt=e;
+  let st='';try{st=localStorage.getItem(INSTALL_KEY)||'';}catch(err){}
+  if(st!=='installed')$('install-btn').style.display='';
+});
+$('install-btn').addEventListener('click',async()=>{
+  if(!deferredPrompt)return;
+  deferredPrompt.prompt();
+  const {outcome}=await deferredPrompt.userChoice;
+  if(outcome==='accepted'){try{localStorage.setItem(INSTALL_KEY,'installed');}catch(e){}}
+  // 使用者自己點的安裝鈕，取消不寫任何持久靜音——只在當次瀏覽收起
+  $('install-btn').style.display='none';deferredPrompt=null;
+});
+window.addEventListener('appinstalled',()=>{try{localStorage.setItem(INSTALL_KEY,'installed');}catch(e){}$('install-btn').style.display='none';});
+</script>
+<script>
+/* yz-promo-footer (trimmed) | 三件套+BMC 注意力效果 | https://github.com/yazelin/promo-footer-skill
+   對 footer 既有的 Buy Me a Coffee 連結加 bobbing + 講話氣泡（不重新注入連結）。 */
+(function(){"use strict";
+if(window.__yzPromoInit)return;window.__yzPromoInit=1;
+try{if(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)return}catch(e){}
+var LINES=["嘿，這裡這裡，我是咖啡按鈕","我是一顆很努力的按鈕，求被點一下","噓，亞澤不知道我在偷偷拉贊助","你看我跳得這麼賣力，不請一杯嗎？","不請也沒關係，你來玩我就很開心","一杯咖啡，是下一個作品的燃料","你的咖啡會變成下一個作品，真的","咖啡因進入亞澤體內，程式碼就會長出來","用愛發電中，咖啡因可提升發電效率","覺得好玩嗎？抖內一下下","這個網站沒有廣告，只有我這顆按鈕"];
+var CSS="@keyframes yzIdle{0%,55%,100%{transform:translateY(0)}62%{transform:translateY(-4px)}70%{transform:translateY(0)}78%{transform:translateY(-2px)}84%{transform:translateY(0)}}.yz-idle{animation:yzIdle 2.6s ease-in-out infinite}@keyframes yzHop{0%,100%{transform:translateY(0)}20%{transform:translateY(-6px) scale(1.04)}40%{transform:translateY(0) scale(1)}55%{transform:translateY(-3px)}70%{transform:translateY(0)}}.yz-hop{animation:yzHop .9s cubic-bezier(.36,.07,.19,.97)}.yz-bubble{position:fixed;z-index:2147483000;max-width:200px;padding:6px 11px;border-radius:14px;background:#fffdf7;color:#4a3f35;border:1px solid rgba(0,0,0,.1);box-shadow:0 4px 14px rgba(0,0,0,.18);font:13px/1.5 system-ui,-apple-system,'Noto Sans TC',sans-serif;pointer-events:none;opacity:0;transform:translateY(5px);transition:opacity .25s ease,transform .25s ease}.yz-bubble.yz-on{opacity:1;transform:translateY(0)}.yz-bubble::after{content:'';position:absolute;left:var(--yz-tail,50%);margin-left:-6px;border:6px solid transparent}.yz-bubble.yz-above::after{bottom:-6px;border-bottom:0;border-top:6px solid #fffdf7}.yz-bubble.yz-below::after{top:-6px;border-top:0;border-bottom:6px solid #fffdf7}";
+var bubble,anchor;
+function addCss(){if(document.getElementById("yz-promo-css"))return;var s=document.createElement("style");s.id="yz-promo-css";s.textContent=CSS;document.head.appendChild(s)}
+function findAnchor(){var as=document.querySelectorAll('a[href*="buymeacoffee.com/yazelin"]');if(!as.length)return null;var vis=[],i,r;for(i=0;i<as.length;i++){r=as[i].getBoundingClientRect();if(r.width||r.height)vis.push(as[i])}var pool=vis.length?vis:[].slice.call(as);return pool[pool.length-1]}
+function hop(){anchor.classList.remove("yz-hop");void anchor.offsetWidth;anchor.classList.add("yz-hop")}
+var shown=0,MAX_SHOWS=3;
+function say(){if(document.hidden)return;var r=anchor.getBoundingClientRect();if(!r.width&&!r.height)return;if(r.bottom<0||r.top>innerHeight)return;if(shown>=MAX_SHOWS)return;shown++;bubble.textContent=LINES[Math.floor(Math.random()*LINES.length)];bubble.classList.remove("yz-on","yz-above","yz-below");bubble.style.left="0px";bubble.style.top="0px";var bw=bubble.offsetWidth,bh=bubble.offsetHeight,cx=r.left+r.width/2;var left=Math.max(8,Math.min(cx-bw/2,innerWidth-bw-8));var above=r.top-bh-12>=8;bubble.style.left=left+"px";bubble.style.top=(above?r.top-bh-12:r.bottom+12)+"px";bubble.classList.add(above?"yz-above":"yz-below");bubble.style.setProperty("--yz-tail",Math.max(12,Math.min(cx-left,bw-12))+"px");hop();requestAnimationFrame(function(){bubble.classList.add("yz-on")});setTimeout(function(){bubble.classList.remove("yz-on")},4200)}
+function start(){addCss();anchor=findAnchor();if(!anchor)return false;try{if(getComputedStyle(anchor).display==="inline")anchor.style.display="inline-block"}catch(e){}anchor.classList.add("yz-idle");anchor.addEventListener("animationend",function(e){if(e.animationName==="yzHop")anchor.classList.remove("yz-hop")});bubble=document.createElement("div");bubble.className="yz-bubble";bubble.setAttribute("aria-hidden","true");document.body.appendChild(bubble);window.__yzPromo=say;(function loop(first){if(shown>=MAX_SHOWS)return;setTimeout(function(){say();loop(false)},first?18e3+Math.random()*12e3:9e4+Math.random()*9e4)})(true);return true}
+function boot(){var tries=0;(function t(){if(start())return;if(++tries<20)setTimeout(t,1500)})()}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
+})();
+</script>
+</body>
+</html>
