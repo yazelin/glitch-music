@@ -4,7 +4,7 @@
    yazelin.github.io 是共用 origin：只清 glmusic- 前綴，不碰其他站的快取。 */
 
 /* cache:start — scripts/update_sw_hashes.py 產生，勿手改 */
-const SHELL_CACHE = 'glmusic-shell-ac8e411d0b43';
+const SHELL_CACHE = 'glmusic-shell-2b3ad0f0f018';
 const ASSET_CACHE = 'glmusic-assets-ac430c2b1cec';
 /* cache:end */
 const KEEP = [SHELL_CACHE, ASSET_CACHE];

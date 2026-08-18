@@ -363,7 +363,8 @@ function playTrack(i,autoplay){
   try{
     const r=await fetch('tracks.json');tracks=await r.json();
   }catch(e){statusEl.textContent='曲庫載入失敗';return;}
-  let saved=NaN;try{saved=Number(localStorage.getItem('glitchmusic:volume'));}catch(e){}
+  // localStorage 沒存過會回 null，Number(null)===0 會把音量靜音；null 要走 NaN 進 fallback
+  let saved=NaN;try{const raw=localStorage.getItem('glitchmusic:volume');saved=raw===null?NaN:Number(raw);}catch(e){}
   audio.volume=Number.isFinite(saved)&&saved>=0&&saved<=1?saved:.8;
   volume.value=audio.volume;volumeValue.textContent=Math.round(audio.volume*100)+'%';rangeFill(volume,audio.volume);rangeFill(progress,0);
   playTrack(0,false);
