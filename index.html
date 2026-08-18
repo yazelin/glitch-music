@@ -167,9 +167,11 @@
     font-size:.78rem;cursor:pointer;display:grid;place-items:center}
   .trk-handle{flex:none;color:#5d6b74;cursor:grab;padding:6px 8px;font-size:.9rem;touch-action:none;user-select:none}
   .trk-handle:active{cursor:grabbing;color:var(--mint)}
-  .trk.dragging{opacity:.35}
-  .trk.drop-above{box-shadow:inset 0 2px 0 var(--mint)}
-  .trk.drop-below{box-shadow:inset 0 -2px 0 var(--mint)}
+  .trk-more{flex:none;border:0;background:transparent;color:#5d6b74;cursor:pointer;padding:6px 6px;font-size:1rem;line-height:1}
+  .trk-more:hover{color:var(--mint)}
+  .trk{transition:transform .12s ease}
+  .trk.dragging{transition:none;z-index:5;opacity:.92;background:#0d1319;
+    box-shadow:0 8px 22px rgba(0,0,0,.55),inset 0 0 0 1px rgba(124,243,192,.45)}
 
   #picker{position:absolute;inset:0;z-index:9;display:grid;place-items:end center;background:rgba(4,8,12,.6)}
   #picker[hidden]{display:none}
@@ -187,8 +189,11 @@
   @keyframes music-live{50%{opacity:.25}}
   @media(prefers-reduced-motion:reduce){.music-visual::before,.playing .music-live{animation:none}}
   @media(max-width:640px){
-    .music-controls{padding:13px 16px calc(18px + env(safe-area-inset-bottom))}
-    .music-artwork{width:min(160px,42vw)}
+    .music-visual{min-height:150px}
+    .music-controls{padding:10px 16px 12px}
+    .music-buttons{margin:8px auto 6px;gap:10px}
+    .music-title-row{margin-bottom:9px}
+    .music-artwork{width:min(128px,38vw)}
     .music-title-row{gap:8px}.music-title-actions{gap:4px}
     .music-lyrics-panel{width:92%}
   }
@@ -555,12 +560,22 @@ function makeRow(t,i,opt){
     const h=document.createElement('span');h.className='trk-handle';h.textContent='☰';h.title='拖曳排序';
     attachDrag(row,h,opt);slide.appendChild(h);
   }
-  row.appendChild(slide);
   if(opt.canRemove?opt.canRemove(t):false){
+    // ⋯ 備援:不會滑或滑不動的裝置,點它同樣把列滑開露出紅鈕(再點才刪,防誤觸)
+    const more=document.createElement('button');more.type='button';more.className='trk-more';more.textContent='⋯';more.title='更多操作';
+    more.addEventListener('click',ev=>{
+      ev.stopPropagation();
+      const was=row.classList.contains('open');closeOpenRow();
+      if(!was){row.classList.add('open');openRow=row;}
+    });
+    slide.appendChild(more);
+    row.appendChild(slide);
     const del=document.createElement('button');del.type='button';del.className='trk-del';del.textContent=opt.removeLabel||'移除';
     del.addEventListener('click',()=>opt.onRemove(Number(row.dataset.i)));
     row.appendChild(del);
     attachSwipe(row,slide);
+  }else{
+    row.appendChild(slide);
   }
   return row;
 }
@@ -573,8 +588,17 @@ let openRow=null;
 function closeOpenRow(){if(openRow){openRow.classList.remove('open');openRow=null;}}
 function attachSwipe(row,slide){
   let sx=0,sy=0,dx=0,horiz=null;
+  // 觸控關鍵:瀏覽器只給「第一個 touchmove」preventDefault 的機會(它是唯一
+  // cancelable 的一發),錯過就 pointercancel 接管、後續事件全沒收。所以 touch 側
+  // 自己在第一發就以 |dx|>|dy| 判方向,水平立刻 preventDefault 保住手勢。
+  let tSX=0,tSY=0,tHoriz=null;
+  slide.addEventListener('touchstart',ev=>{tSX=ev.touches[0].clientX;tSY=ev.touches[0].clientY;tHoriz=null;},{passive:true});
+  slide.addEventListener('touchmove',ev=>{
+    if(tHoriz===null){const mdx=ev.touches[0].clientX-tSX,mdy=ev.touches[0].clientY-tSY;tHoriz=Math.abs(mdx)>Math.abs(mdy);}
+    if(tHoriz)ev.preventDefault();
+  },{passive:false});
   slide.addEventListener('pointerdown',e=>{
-    if(e.target.closest('.trk-handle'))return;
+    if(e.target.closest('.trk-handle')||e.target.closest('.trk-more'))return;
     sx=e.clientX;sy=e.clientY;dx=0;horiz=null;row._moved=false;
     const move=ev=>{
       const mx=ev.clientX-sx,my=ev.clientY-sy;
@@ -584,16 +608,20 @@ function attachSwipe(row,slide){
       dx=Math.max(-110,Math.min(0,mx+(row.classList.contains('open')?-84:0)));
       slide.style.transform='translateX('+dx+'px)';
     };
-    const up=()=>{
-      window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);
+    const done=commit=>()=>{
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',cancel);
       row.classList.remove('swiping');slide.style.transform='';
-      if(horiz){
+      if(commit&&horiz){
         closeOpenRow();
         if(dx<-50){row.classList.add('open');openRow=row;}
       }
+      horiz=null;
       setTimeout(()=>{row._moved=false;},0);
     };
+    const up=done(true),cancel=done(false);
     window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);
+    window.addEventListener('pointercancel',cancel);
   });
   // 滑動結束瀏覽器仍會合成 click;_moved 尚未清除,靠它分辨「真點擊」與「滑動尾巴」
   row.querySelector('.trk-main').addEventListener('click',()=>{if(!row._moved)closeOpenRow();},true);
@@ -603,17 +631,24 @@ function attachDrag(row,handle,opt){
   handle.addEventListener('pointerdown',e=>{
     e.preventDefault();closeOpenRow();
     const list=row.parentElement,rows=[...list.children],h=row.offsetHeight;
-    const from=rows.indexOf(row);let to=from;
+    const from=rows.indexOf(row),startY=e.clientY;let to=from;
     row.classList.add('dragging');
     const move=ev=>{
+      row.style.transform='translateY('+(ev.clientY-startY)+'px)';
       const rect=list.getBoundingClientRect();
       to=Math.max(0,Math.min(rows.length-1,Math.floor((ev.clientY-rect.top+list.scrollTop)/h)));
-      rows.forEach((r,i)=>{r.classList.toggle('drop-above',i===to&&to<from);r.classList.toggle('drop-below',i===to&&to>from);});
+      rows.forEach((r,i)=>{
+        if(r===row)return;
+        let sh=0;
+        if(from<to&&i>from&&i<=to)sh=-h;
+        else if(from>to&&i>=to&&i<from)sh=h;
+        r.style.transform=sh?'translateY('+sh+'px)':'';
+      });
       if(ev.clientY<rect.top+24)list.scrollTop-=8;else if(ev.clientY>rect.bottom-24)list.scrollTop+=8;
     };
     const up=()=>{
       window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);
-      rows.forEach(r=>r.classList.remove('dragging','drop-above','drop-below'));
+      rows.forEach(r=>{r.classList.remove('dragging');r.style.transform='';});
       if(to!==from)opt.onReorder(from,to);
     };
     window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);
