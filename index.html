@@ -508,21 +508,33 @@ function draw(now){
     analyser.getByteFrequencyData(freq);analyser.getByteTimeDomainData(wave);
     bass=band(freq,1,18);energy=band(freq,4,110);treble=band(freq,90,210);
   }else if(!audio.paused){
-    // iOS／無 Web Audio：用時間函數模擬能量，畫面照動、聲音走原生 <audio>
-    energy=.16+Math.sin(now/460)*.07;bass=.2+Math.sin(now/620)*.14;treble=.12+Math.sin(now/300)*.08;
+    // 電台/iOS/無 Web Audio:拿不到真頻譜,用多層時間函數合成能量——
+    // 幅度對齊真頻譜的觀感(bass 峰值要衝破 .38 粒子門檻,不然畫面像死的)
+    energy=.3+Math.sin(now/460)*.14+Math.sin(now/187)*.06;
+    bass=.3+Math.abs(Math.sin(now/620))*.22+Math.sin(now/241)*.05;
+    treble=.2+Math.sin(now/300)*.12;
   }
   const hue=Math.round(180+treble*105);visual.style.setProperty('--music-energy',energy.toFixed(3));visual.style.setProperty('--music-bass',Math.max(0,bass).toFixed(3));visual.style.setProperty('--music-hue',hue);
   const cx=width/2,cy=height*.5,minSide=Math.min(width,height),inner=Math.min(minSide*.345,108),bars=72;
   ctx.save();ctx.globalCompositeOperation='lighter';
   for(let i=0;i<bars;i++){
-    const amp=analyser&&!audio.paused&&audio===audioLocal?(freq[Math.floor(i/bars*freq.length*.72)]||0)/255:(audio.paused?.025:.1)+.018*Math.sin(now/420+i*.7)+(audio.paused?0:Math.max(0,energy-.1)*Math.abs(Math.sin(i*2.7+now/240))*.8);
+    const amp=analyser&&!audio.paused&&audio===audioLocal?(freq[Math.floor(i/bars*freq.length*.72)]||0)/255:(audio.paused?.025:.14)+.02*Math.sin(now/420+i*.7)+(audio.paused?0:Math.max(0,energy-.08)*Math.abs(Math.sin(i*2.7+now/240))*1.15);
     const angle=-Math.PI/2+i/bars*Math.PI*2,length=4+amp*(20+energy*28),x1=cx+Math.cos(angle)*inner,y1=cy+Math.sin(angle)*inner;
     ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(cx+Math.cos(angle)*(inner+length),cy+Math.sin(angle)*(inner+length));
     ctx.strokeStyle=`hsla(${174+i/bars*116},90%,64%,${.22+amp*.68})`;ctx.lineWidth=1.4+amp*2.2;ctx.lineCap='round';ctx.stroke();
   }
   ctx.beginPath();ctx.arc(cx,cy,inner-6+bass*9,0,Math.PI*2);ctx.strokeStyle=`hsla(${hue},95%,66%,${.16+energy*.28})`;ctx.lineWidth=2+bass*5;ctx.stroke();
-  if(wave&&analyser&&audio===audioLocal){
-    ctx.beginPath();for(let i=0;i<wave.length;i+=2){const x=i/(wave.length-1)*width,y=height*.82+(wave[i]-128)/128*(12+energy*22);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  if(!audio.paused){
+    // 底部波形:本機歌畫真波形,電台/模擬用合成正弦疊加,別讓畫面少一層
+    ctx.beginPath();
+    const real=wave&&analyser&&audio===audioLocal;
+    const N=real?wave.length:160;
+    for(let i=0;i<N;i+=real?2:1){
+      const x=i/(N-1)*width;
+      const y=real?height*.82+(wave[i]-128)/128*(12+energy*22)
+                  :height*.82+(Math.sin(i*.13+now/210)*.5+Math.sin(i*.041+now/470)*.5)*(10+energy*20);
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
     const g=ctx.createLinearGradient(0,0,width,0);g.addColorStop(0,'rgba(37,194,232,0)');g.addColorStop(.25,`rgba(37,194,232,${.2+energy*.45})`);g.addColorStop(.75,`rgba(183,139,255,${.2+energy*.45})`);g.addColorStop(1,'rgba(183,139,255,0)');ctx.strokeStyle=g;ctx.lineWidth=1.3;ctx.stroke();
   }
   if(!reducedMotion&&!audio.paused&&bass>.38&&particles.length<48&&Math.random()<bass*.45){
