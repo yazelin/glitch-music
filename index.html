@@ -834,13 +834,21 @@ window.addEventListener('dragenter',e=>{e.preventDefault();if(++dragDepth===1)do
 window.addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0;document.body.classList.remove('dragging');}});
 window.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;document.body.classList.remove('dragging');importFiles([...e.dataTransfer.files],currentImportTarget());});
 const base=n=>n.replace(/\.[^.]+$/,'');
+// 歌曲 id=內容 SHA-256 前 16 hex(64 bit,實務上不會撞):同檔案天然去重。
+// 非安全環境沒有 crypto.subtle 時退回隨機 id(只是失去去重,功能照常)。
+async function songId(buf){
+  try{
+    const h=await crypto.subtle.digest('SHA-256',buf);
+    return 'u'+[...new Uint8Array(h).slice(0,8)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  }catch(e){return 'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+}
 // 匯入時人在哪本歌單,新歌就順手掛進哪本(同時一定進曲庫)
 let importTarget=null;
 function currentImportTarget(){
   return document.body.dataset.view==='detail'&&plById(currentPl)?currentPl:null;
 }
 async function importFiles(files,targetPl){
-  let added=0,skipped=0;const newIds=[];
+  let added=0,skipped=0,dup=0;const newIds=[];
   for(const f of files||[]){
     if(/\.lrc$/i.test(f.name)){await attachLrc(f);continue;}
     // mp4 進得來:<audio> 播 video/mp4 只取音軌
@@ -848,12 +856,17 @@ async function importFiles(files,targetPl){
     if(!f.type.startsWith('audio/')&&!isMp4&&!/\.(mp3|flac|ogg|wav|aac)$/i.test(f.name)){skipped++;continue;}
     let buf;
     try{buf=await f.arrayBuffer();}catch(e){console.warn('讀檔失敗',f.name,e);skipped++;continue;}
+    const id=await songId(buf);
+    if(library.some(t=>t.id===id)){dup++;
+      // 重複檔:不重建,但若目標歌單沒有它,仍幫忙掛進歌單
+      if(targetPl&&plById(targetPl)&&!plById(targetPl).ids.includes(id))newIds.push(id);
+      continue;}
     let tag={title:null,artist:null,album:null,picture:null,lyrics:null};
     // metadata 路由:mp4 家族走 ilst atoms,其他走 ID3
     try{tag=isMp4?{lyrics:null,...parseMp4Meta(buf)}:parseId3(buf);}
     catch(e){console.warn('metadata 解析失敗,用檔名',f.name,e);}
     const song={
-      id:'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),kind:'user',
+      id,kind:'user',
       title:tag.title||base(f.name),artist:tag.artist||'本機音樂',album:tag.album||'',
       name:f.name,blob:new Blob([buf],{type:f.type||'audio/mpeg'}),
       coverBlob:tag.picture?new Blob([tag.picture.data],{type:tag.picture.mime}):null,
@@ -864,8 +877,8 @@ async function importFiles(files,targetPl){
   }
   const pl=plById(targetPl);
   if(pl&&newIds.length){pl.ids.push(...newIds);await savePlaylists();}
-  if(added){await saveOrder();rebuildQueue();renderPlaylist();renderLists();renderDetail();}
-  if(added||skipped)statusEl.textContent=(added?'已加入 '+added+' 首'+(pl?'到「'+pl.name+'」':''):'')+(skipped?(added?'，':'')+'略過 '+skipped+' 個不支援的檔案':'');
+  if(added||newIds.length){if(added)await saveOrder();rebuildQueue();renderPlaylist();renderLists();renderDetail();}
+  if(added||skipped||dup)statusEl.textContent=[added?'已加入 '+added+' 首'+(pl?'到「'+pl.name+'」':''):'',dup?'略過 '+dup+' 首已在曲庫':'',skipped?'略過 '+skipped+' 個不支援的檔案':''].filter(Boolean).join('，');
 }
 async function attachLrc(f){
   const text=await f.text();
@@ -936,8 +949,35 @@ function playTrack(i,autoplay){
   try{const last=await kvGet('last');const i=tracks.findIndex(t=>t.id===last);if(i>=0)start=i;}catch(e){}
   if(tracks.length)playTrack(start,false);else renderPlaylist();
   startVisualizer();
+  try{if(await kvGet('hashids')!==1){await migrateHashIds();await kvSet('hashids',1);}}catch(e){}
   try{if(await kvGet('rescan')!==RESCAN_VER){await rescanTags();await kvSet('rescan',RESCAN_VER);}}catch(e){}
 })();
+
+/* ===== 一次性遷移:舊隨機 id → 內容 hash id;重複內容合併,引用全部重接 ===== */
+async function migrateHashIds(){
+  const remap=new Map();
+  for(const t of[...library]){
+    if(t.kind!=='user'||!t.blob||/^u[0-9a-f]{16}$/.test(t.id))continue;
+    try{
+      const nid=await songId(await t.blob.arrayBuffer());
+      const oldId=t.id;
+      if(library.some(x=>x.id===nid)){
+        // 內容重複:丟掉這筆,引用併到留下的那筆
+        await songDel(oldId).catch(()=>{});
+        library.splice(library.indexOf(t),1);
+      }else{
+        await songDel(oldId).catch(()=>{});
+        t.id=nid;await songPut(t);
+      }
+      remap.set(oldId,nid);
+    }catch(e){}
+  }
+  if(!remap.size)return;
+  playlists.forEach(pl=>{pl.ids=[...new Set(pl.ids.map(id=>remap.get(id)||id))];});
+  await savePlaylists();await saveOrder();
+  try{const last=await kvGet('last');if(remap.has(last))await kvSet('last',remap.get(last));}catch(e){}
+  rebuildQueue();renderPlaylist();renderLists();
+}
 
 /* ===== 啟動後補掃:解析器升級時,舊匯入的歌重新讀一次標籤(免重匯) ===== */
 const RESCAN_VER=2; // 解析器有感升級就 +1
