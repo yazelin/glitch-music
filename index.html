@@ -39,7 +39,9 @@
   #offline-badge{border-color:rgba(124,243,192,.28);color:var(--mint);background:rgba(124,243,192,.07);display:none;cursor:default}
   #install-btn{display:none}
 
-  main{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  /* overflow:clip 而非 hidden:hidden 仍可被 focus/scrollIntoView 程式捲動,
+     視圖滑入動畫期間一旦被捲走就整包偏移;clip 禁止一切捲動 */
+  main{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;overflow:clip}
 
   .music-visual{--music-energy:.08;--music-bass:.05;--music-hue:190;position:relative;flex:1;min-height:230px;overflow:hidden;
     display:grid;place-items:center;isolation:isolate;background:
@@ -117,6 +119,9 @@
   .trk-t{min-width:0}
   .trk-t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .trk-t small{color:#66757e;font-size:.66rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .live-badge{display:inline-block;margin-left:6px;padding:0 5px;border-radius:5px;vertical-align:1px;
+    font:700 .56rem/1.6 ui-monospace,monospace;letter-spacing:.08em;color:#ff9d9d;border:1px solid rgba(255,120,120,.45);background:rgba(255,80,80,.1)}
+  .sec-head{padding:8px 16px 4px;color:#5d6b74;font-size:.64rem;letter-spacing:.12em;border-top:1px solid rgba(255,255,255,.05)}
   .trk.now .trk-t small{color:rgba(124,243,192,.6)}
   .trk-act{display:flex;gap:2px;flex:none;opacity:.55}
   .trk:hover .trk-act{opacity:1}
@@ -255,7 +260,7 @@
   </div>
 
   <div class="view side" id="view-lists">
-    <div class="lib-head"><span>歌單</span><span class="lib-hint"></span><button class="chip" id="pl-new" type="button">＋ 新歌單</button></div>
+    <div class="lib-head"><span>歌單</span><span class="lib-hint"></span><button class="chip" id="net-add" type="button">＋ 網路音樂</button><button class="chip" id="pl-new" type="button">＋ 新歌單</button></div>
     <div id="pl-list"></div>
   </div>
 
@@ -276,6 +281,7 @@
   </div>
 
   <audio id="music-audio" preload="metadata" playsinline></audio>
+  <audio id="music-audio-net" preload="none" playsinline></audio>
 
   <aside class="music-lyrics-panel" id="music-lyrics" aria-hidden="true" aria-labelledby="music-lyrics-title">
     <div class="music-lyrics-head"><h3 id="music-lyrics-title">完整歌詞</h3><button class="music-lyrics-close" id="music-lyrics-close" type="button" aria-label="關閉歌詞">×</button></div>
@@ -313,7 +319,10 @@ import { parseMp4Meta } from './js/mp4meta.js';
 import { parseLrc, lineIndexAt } from './js/lrc.js';
 
 const $=id=>document.getElementById(id);
-const audio=$('music-audio'),visual=$('music-visual'),canvas=$('music-canvas');
+// 本機/同源曲走 audioLocal(可接頻譜 graph);網路曲/電台走 audioNet——
+// graph 一接就拆不回來,跨站來源沒 CORS 會被整條靜音,所以網路曲永遠不進 graph。
+const audioLocal=$('music-audio'),audioNet=$('music-audio-net'),visual=$('music-visual'),canvas=$('music-canvas');
+let audio=audioLocal;
 const playBtn=$('music-play'),playIcon=$('music-play-icon');
 const progress=$('music-progress'),curEl=$('music-current'),durEl=$('music-duration');
 const volume=$('music-volume'),volumeValue=$('music-volume-value'),statusEl=$('music-status');
@@ -361,23 +370,30 @@ function coverUrl(t){
   return 'images/icon-192.png';
 }
 function updateProgress(){
+  const live=tracks[cursor]?.stream||audio.duration===Infinity;
+  progress.disabled=$('music-back').disabled=$('music-forward').disabled=live;
+  if(live){
+    progress.value=0;rangeFill(progress,0);
+    curEl.textContent='';durEl.textContent='LIVE';
+    return;
+  }
   const d=Number.isFinite(audio.duration)?audio.duration:(tracks[cursor]?.duration||0);
   progress.max=d||1;progress.value=Math.min(audio.currentTime||0,d||1);
   curEl.textContent=fmt(audio.currentTime);durEl.textContent=fmt(d);rangeFill(progress,progress.value);
-  if('mediaSession'in navigator&&d>0&&Number.isFinite(audio.currentTime)){
+  if('mediaSession'in navigator&&d>0&&Number.isFinite(d)&&Number.isFinite(audio.currentTime)){
     try{navigator.mediaSession.setPositionState({duration:d,playbackRate:audio.playbackRate,position:Math.min(audio.currentTime,d)});}catch(e){}
   }
   syncLyrics();
 }
 async function ensureGraph(){
-  if(IOS)return;
+  if(IOS||audio!==audioLocal)return;
   const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
   if(!actx)actx=new AC();
   if(actx.state==='suspended')await actx.resume();
   if(!analyser){
     analyser=actx.createAnalyser();analyser.fftSize=512;analyser.smoothingTimeConstant=.82;
     freq=new Uint8Array(analyser.frequencyBinCount);wave=new Uint8Array(analyser.fftSize);
-    const src=actx.createMediaElementSource(audio);src.connect(analyser);analyser.connect(actx.destination);
+    const src=actx.createMediaElementSource(audioLocal);src.connect(analyser);analyser.connect(actx.destination);
   }
 }
 async function toggle(){
@@ -408,39 +424,58 @@ $('music-prev').addEventListener('click',()=>step(-1));
 $('music-next').addEventListener('click',()=>step(1));
 progress.addEventListener('input',()=>{audio.currentTime=Number(progress.value);updateProgress();});
 volume.addEventListener('input',()=>{
-  audio.volume=Number(volume.value);volumeValue.textContent=Math.round(audio.volume*100)+'%';rangeFill(volume,audio.volume);
+  audioLocal.volume=audioNet.volume=Number(volume.value);volumeValue.textContent=Math.round(audio.volume*100)+'%';rangeFill(volume,audio.volume);
   clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>{try{localStorage.setItem('glitchmusic:volume',String(audio.volume));}catch(e){}},180);
 });
-audio.addEventListener('loadedmetadata',updateProgress);
-audio.addEventListener('durationchange',updateProgress);
-audio.addEventListener('timeupdate',updateProgress);
-audio.addEventListener('waiting',()=>{statusEl.textContent='讀取中…';});
-audio.addEventListener('playing',()=>{statusEl.textContent='播放中';});
-audio.addEventListener('error',()=>{
-  hadError=true;statusEl.textContent='音訊載入失敗，請再按一次播放';
+for(const el of[audioLocal,audioNet]){
+el.addEventListener('loadedmetadata',e=>{if(e.target===audio)updateProgress();});
+el.addEventListener('durationchange',e=>{if(e.target===audio){detectStream();updateProgress();}});
+el.addEventListener('timeupdate',e=>{if(e.target===audio)updateProgress();});
+el.addEventListener('waiting',e=>{if(e.target===audio)statusEl.textContent='讀取中…';});
+el.addEventListener('playing',e=>{if(e.target===audio)statusEl.textContent=tracks[cursor]?.stream?'LIVE 播送中':'播放中';});
+el.addEventListener('error',e=>{
+  if(e.target!==audio)return;
+  hadError=true;statusEl.textContent=tracks[cursor]?.stream?'電台連不上,換一台試試':'音訊載入失敗，請再按一次播放';
   setTimeout(()=>{if(hadError&&audio.paused)audio.load();},0);
 });
-audio.addEventListener('play',()=>{
+el.addEventListener('play',e=>{if(e.target===audio)onPlayEvt();});
+el.addEventListener('pause',e=>{if(e.target===audio)onPauseEvt();});
+el.addEventListener('ended',e=>{if(e.target===audio)onEnded();});
+}
+function onPlayEvt(){
   hadError=false;document.body.classList.add('playing');
   playIcon.setAttribute('href','#i-pause');playBtn.title='暫停';playBtn.setAttribute('aria-label','暫停');statusEl.textContent='播放中';
   if('mediaSession'in navigator)navigator.mediaSession.playbackState='playing';
   syncMini();startVisualizer();
-});
-audio.addEventListener('pause',()=>{
+}
+function onPauseEvt(){
   document.body.classList.remove('playing');
   playIcon.setAttribute('href','#i-play');playBtn.title='播放';playBtn.setAttribute('aria-label','播放');if(!hadError)statusEl.textContent='已暫停';
   if('mediaSession'in navigator)navigator.mediaSession.playbackState='paused';
   syncMini();
-});
-// 播完依模式決定下一首;prev/next 鈕永遠走順序(隨機只影響自動接歌)
-audio.addEventListener('ended',()=>{
+}
+// 播完依模式決定下一首;prev/next 鈕永遠走順序(隨機只影響自動接歌)。
+// 電台=轉台不是歌單:自動接歌永遠跳過 stream 曲目(手動點選/上下首照常)。
+function onEnded(){
   if(mode==='one'){audio.currentTime=0;audio.play().catch(()=>{});return;}
-  if(mode==='shuffle'&&tracks.length>1){
-    let i;do{i=Math.floor(Math.random()*tracks.length);}while(i===cursor);
-    playTrack(i,true);return;
+  const songsOnly=tracks.map((t,i)=>({t,i})).filter(x=>!x.t.stream);
+  if(!songsOnly.length)return;
+  if(mode==='shuffle'&&songsOnly.length>1){
+    let pick;do{pick=songsOnly[Math.floor(Math.random()*songsOnly.length)].i;}while(pick===cursor);
+    playTrack(pick,true);return;
   }
-  playTrack((cursor+1)%tracks.length,true);
-});
+  for(let d=1;d<=tracks.length;d++){
+    const n=(cursor+d)%tracks.length;
+    if(!tracks[n].stream){playTrack(n,true);return;}
+  }
+}
+// 貼 URL 的曲目一開始不知道是不是電台:duration 讀出 Infinity 就標成 stream 並記住
+function detectStream(){
+  const t=tracks[cursor];
+  if(t&&t.kind==='user'&&t.src&&!t.stream&&audio.duration===Infinity){
+    t.stream=true;songPut(t).catch(()=>{});renderPlaylist();updateProgress();
+  }
+}
 function step(d){if(tracks.length)playTrack((cursor+d+tracks.length)%tracks.length,true);}
 
 /* ===== 播放模式 ===== */
@@ -460,7 +495,7 @@ function draw(now){
   if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}
   const ctx=ctx2d||(ctx2d=canvas.getContext('2d'));ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
   let energy=.035+Math.sin(now/900)*.008,bass=.025,treble=.02;
-  if(analyser&&!audio.paused){
+  if(analyser&&!audio.paused&&audio===audioLocal){
     analyser.getByteFrequencyData(freq);analyser.getByteTimeDomainData(wave);
     bass=band(freq,1,18);energy=band(freq,4,110);treble=band(freq,90,210);
   }else if(!audio.paused){
@@ -471,13 +506,13 @@ function draw(now){
   const cx=width/2,cy=height*.5,minSide=Math.min(width,height),inner=Math.min(minSide*.345,108),bars=72;
   ctx.save();ctx.globalCompositeOperation='lighter';
   for(let i=0;i<bars;i++){
-    const amp=analyser&&!audio.paused?(freq[Math.floor(i/bars*freq.length*.72)]||0)/255:(audio.paused?.025:.1)+.018*Math.sin(now/420+i*.7)+(audio.paused?0:Math.max(0,energy-.1)*Math.abs(Math.sin(i*2.7+now/240))*.8);
+    const amp=analyser&&!audio.paused&&audio===audioLocal?(freq[Math.floor(i/bars*freq.length*.72)]||0)/255:(audio.paused?.025:.1)+.018*Math.sin(now/420+i*.7)+(audio.paused?0:Math.max(0,energy-.1)*Math.abs(Math.sin(i*2.7+now/240))*.8);
     const angle=-Math.PI/2+i/bars*Math.PI*2,length=4+amp*(20+energy*28),x1=cx+Math.cos(angle)*inner,y1=cy+Math.sin(angle)*inner;
     ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(cx+Math.cos(angle)*(inner+length),cy+Math.sin(angle)*(inner+length));
     ctx.strokeStyle=`hsla(${174+i/bars*116},90%,64%,${.22+amp*.68})`;ctx.lineWidth=1.4+amp*2.2;ctx.lineCap='round';ctx.stroke();
   }
   ctx.beginPath();ctx.arc(cx,cy,inner-6+bass*9,0,Math.PI*2);ctx.strokeStyle=`hsla(${hue},95%,66%,${.16+energy*.28})`;ctx.lineWidth=2+bass*5;ctx.stroke();
-  if(wave&&analyser){
+  if(wave&&analyser&&audio===audioLocal){
     ctx.beginPath();for(let i=0;i<wave.length;i+=2){const x=i/(wave.length-1)*width,y=height*.82+(wave[i]-128)/128*(12+energy*22);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
     const g=ctx.createLinearGradient(0,0,width,0);g.addColorStop(0,'rgba(37,194,232,0)');g.addColorStop(.25,`rgba(37,194,232,${.2+energy*.45})`);g.addColorStop(.75,`rgba(183,139,255,${.2+energy*.45})`);g.addColorStop(1,'rgba(183,139,255,0)');ctx.strokeStyle=g;ctx.lineWidth=1.3;ctx.stroke();
   }
@@ -556,6 +591,7 @@ function makeRow(t,i,opt){
   const im=document.createElement('img');im.src=coverUrl(t);im.alt='';
   const tt=document.createElement('span');tt.className='trk-t';
   const bb=document.createElement('b');bb.textContent=t.title;
+  if(t.stream){const lv=document.createElement('span');lv.className='live-badge';lv.textContent='LIVE';bb.appendChild(lv);}
   const sm=document.createElement('small');sm.textContent=t.artist||'';
   tt.append(bb,sm);main.append(im,tt);
   main.addEventListener('click',()=>{if(!row._moved)opt.onPlay(Number(row.dataset.i));});
@@ -585,7 +621,13 @@ function makeRow(t,i,opt){
 }
 function renderRows(listEl,items,opt){
   listEl.textContent='';
-  items.forEach((t,i)=>listEl.appendChild(makeRow(t,i,opt)));
+  const songs=items.map((t,i)=>[t,i]).filter(([t])=>!t.stream);
+  const radios=items.map((t,i)=>[t,i]).filter(([t])=>t.stream);
+  songs.forEach(([t,i])=>listEl.appendChild(makeRow(t,i,opt)));
+  if(radios.length){
+    const h=document.createElement('div');h.className='sec-head';h.textContent='電台 · 24/7';listEl.appendChild(h);
+    radios.forEach(([t,i])=>listEl.appendChild(makeRow(t,i,opt)));
+  }
 }
 /* 左滑刪除:水平位移超過門檻停在 -84px 露出紅鈕;直向捲動不攔 */
 let openRow=null;
@@ -634,13 +676,22 @@ function attachSwipe(row,slide){
 function attachDrag(row,handle,opt){
   handle.addEventListener('pointerdown',e=>{
     e.preventDefault();closeOpenRow();
-    const list=row.parentElement,rows=[...list.children],h=row.offsetHeight;
-    const from=rows.indexOf(row),startY=e.clientY;let to=from;
+    const list=row.parentElement;
+    // 只算真正的列(排除電台分區的 sec-head);位置用「最近列中心」不假設等高
+    const rows=[...list.children].filter(el=>el.classList.contains('trk'));
+    const from=rows.indexOf(row),startY=e.clientY,h=row.offsetHeight;let to=from;
+    // 快照各列「拖曳前」的中心:拖曳中被拖列跟手、其他列讓位,活算距離會
+    // 永遠選到自己或回饋抖動
+    const centers=rows.map(r=>{const c=r.getBoundingClientRect();return c.top+c.height/2;});
     row.classList.add('dragging');
     const move=ev=>{
       row.style.transform='translateY('+(ev.clientY-startY)+'px)';
-      const rect=list.getBoundingClientRect();
-      to=Math.max(0,Math.min(rows.length-1,Math.floor((ev.clientY-rect.top+list.scrollTop)/h)));
+      let best=from,bd=Math.abs(centers[from]-ev.clientY);
+      centers.forEach((cy,i)=>{
+        const d=Math.abs(cy-ev.clientY);
+        if(d<bd){bd=d;best=i;}
+      });
+      to=best;
       rows.forEach((r,i)=>{
         if(r===row)return;
         let sh=0;
@@ -648,12 +699,14 @@ function attachDrag(row,handle,opt){
         else if(from>to&&i>=to&&i<from)sh=h;
         r.style.transform=sh?'translateY('+sh+'px)':'';
       });
+      const rect=list.getBoundingClientRect();
       if(ev.clientY<rect.top+24)list.scrollTop-=8;else if(ev.clientY>rect.bottom-24)list.scrollTop+=8;
     };
     const up=()=>{
       window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);
       rows.forEach(r=>{r.classList.remove('dragging');r.style.transform='';});
-      if(to!==from)opt.onReorder(from,to);
+      // commit 用 items 索引(dataset.i),不是渲染位置——分組渲染後兩者不同
+      if(to!==from)opt.onReorder(Number(row.dataset.i),Number(rows[to].dataset.i));
     };
     window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);
   });
@@ -716,6 +769,22 @@ function renderLists(){
   mk('全部歌曲',library.length,queueSrc===null,()=>openDetail(null));
   playlists.forEach(pl=>mk(pl.name,pl.ids.length,queueSrc===pl.id,()=>openDetail(pl.id)));
 }
+$('net-add').addEventListener('click',async()=>{
+  const url=prompt('貼上直連音檔或電台串流網址(mp3/aac/m4a)','https://');
+  if(!url||!/^https?:\/\//i.test(url.trim()))return;
+  const clean=url.trim();
+  const name=prompt('名稱',(()=>{try{return new URL(clean).hostname;}catch(e){return '網路音樂';}})());
+  if(name===null)return;
+  // icecast 電台的 duration 是滾動估計值不是 Infinity,自動偵測不可靠——加入時直接問
+  const isRadio=confirm('這是 24/7 電台/直播串流嗎?\n(確定=電台,取消=一般音檔)');
+  const id=await songId(new TextEncoder().encode('url:'+clean).buffer);
+  if(library.some(t=>t.id===id)){statusEl.textContent='這個網址已在曲庫';return;}
+  const song={id,kind:'user',title:(name||'網路音樂').trim()||'網路音樂',artist:isRadio?'24/7 電台':'網路來源',album:'',
+    name:clean,src:clean,stream:isRadio||undefined,blob:null,coverBlob:null,lrc:null,addedAt:Date.now()};
+  try{await songPut(song);}catch(e){statusEl.textContent='儲存失敗';return;}
+  library.push(song);await saveOrder();rebuildQueue();renderPlaylist();renderLists();
+  statusEl.textContent='已加入網路音樂「'+song.title+'」';
+});
 $('pl-new').addEventListener('click',async()=>{
   const name=prompt('歌單名稱','新歌單');if(!name||!name.trim())return;
   const pl={id:plUid(),name:name.trim(),ids:[]};
@@ -912,6 +981,10 @@ function playTrack(i,autoplay){
   cursor=i;const t=tracks[i];if(!t)return;
   $('music-title').textContent=t.title;$('music-artist').textContent=(t.artist||'')+(t.album?' · '+t.album:'');
   $('music-cover').src=coverUrl(t);
+  // 跨站 URL(電台/網路歌)走 audioNet;本機 blob 與站內音檔走 audioLocal
+  const useNet=!!t.src&&/^https?:/i.test(t.src)&&new URL(t.src,location.href).origin!==location.origin;
+  const next=useNet?audioNet:audioLocal;
+  if(next!==audio){audio.pause();audio.removeAttribute('src');audio.load();audio=next;audio.volume=Number(volume.value);}
   audio.src=trackUrl(t);progress.max=t.duration||1;updateProgress();
   renderPlaylist();renderLyrics(t);setMediaSession(t);syncMini();
   kvSet('last',t.id).catch(()=>{});
@@ -943,8 +1016,8 @@ function playTrack(i,autoplay){
   setMode(mode);
   // localStorage 沒存過會回 null，Number(null)===0 會把音量靜音；null 要走 NaN 進 fallback
   let saved=NaN;try{const raw=localStorage.getItem('glitchmusic:volume');saved=raw===null?NaN:Number(raw);}catch(e){}
-  audio.volume=Number.isFinite(saved)&&saved>=0&&saved<=1?saved:.8;
-  volume.value=audio.volume;volumeValue.textContent=Math.round(audio.volume*100)+'%';rangeFill(volume,audio.volume);rangeFill(progress,0);
+  audioLocal.volume=audioNet.volume=Number.isFinite(saved)&&saved>=0&&saved<=1?saved:.8;
+  volume.value=audioLocal.volume;volumeValue.textContent=Math.round(audio.volume*100)+'%';rangeFill(volume,audio.volume);rangeFill(progress,0);
   let start=0;
   try{const last=await kvGet('last');const i=tracks.findIndex(t=>t.id===last);if(i>=0)start=i;}catch(e){}
   if(tracks.length)playTrack(start,false);else renderPlaylist();
