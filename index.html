@@ -873,7 +873,11 @@ function renderPicker(){
 
 /* --- 電台:自管清單(內建只是預設值,可刪可加),完全獨立於曲庫/歌單 --- */
 const DEFAULT_STATIONS=[
-  // 飛碟的端點=官網播放器所用的公開直連;電台若更換 CDN 會失效,清單裡可刪可自行更新
+  // 端點=各電台官方播放器所用的公開串流;電台若改版會失效,清單裡可刪可自行更新
+  {id:'st-pbs',name:'警廣 全國治安交通網',src:'https://stream.pbs.gov.tw/live/mp3:PBS/playlist.m3u8',desc:'台灣 · 路況與音樂'},
+  {id:'st-pbs-tps',name:'警廣 臺北臺',src:'https://stream.pbs.gov.tw/live/TPS/playlist.m3u8',desc:'台灣 · 地區路況'},
+  {id:'st-pbs-tcs',name:'警廣 臺中臺',src:'https://stream.pbs.gov.tw/live/TCS/playlist.m3u8',desc:'台灣 · 地區路況'},
+  {id:'st-pbs-kss',name:'警廣 高雄臺',src:'https://stream.pbs.gov.tw/live/KSS/playlist.m3u8',desc:'台灣 · 地區路況'},
   {id:'st-uforadio',name:'飛碟電台 UFO FM92.1',src:'https://stream.rcs.revma.com/em90w4aeewzuv',desc:'台灣 · 流行音樂與談話'},
   {id:'st-groovesalad',name:'SomaFM · Groove Salad',src:'https://ice1.somafm.com/groovesalad-128-mp3',desc:'環境電子'},
   {id:'st-secretagent',name:'SomaFM · Secret Agent',src:'https://ice1.somafm.com/secretagent-128-mp3',desc:'間諜爵士'},
@@ -881,6 +885,31 @@ const DEFAULT_STATIONS=[
   {id:'st-listenmoe',name:'LISTEN.moe · J-POP',src:'https://listen.moe/fallback',desc:'動漫音樂'},
 ];
 let stations=[],radioMode=false,currentStation=-1;
+/* HLS 電台(如警廣):Safari/iOS 原生播;Chrome/Android lazy 載自架 hls.js。
+   離開電台或換台一律 destroy,避免殘留的 loader 繼續抓片段。 */
+let hls=null,hlsLibReady=null;
+function destroyHls(){if(hls){try{hls.destroy();}catch(e){}hls=null;}}
+function loadHlsLib(){
+  if(window.Hls)return Promise.resolve();
+  if(hlsLibReady)return hlsLibReady;
+  hlsLibReady=new Promise((res,rej)=>{
+    const sc=document.createElement('script');sc.src='js/vendor-hls.light.min.js';
+    sc.onload=res;sc.onerror=()=>{hlsLibReady=null;rej(new Error('hls lib load failed'));};
+    document.head.appendChild(sc);
+  });
+  return hlsLibReady;
+}
+async function attachSource(el,src){
+  destroyHls();
+  if(!/\.m3u8($|\?)/i.test(src)){el.src=src;return;}
+  if(el.canPlayType('application/vnd.apple.mpegurl')){el.src=src;return;} // Safari/iOS 原生
+  await loadHlsLib();
+  hls=new window.Hls({enableWorker:false});
+  hls.on(window.Hls.Events.ERROR,(ev,data)=>{
+    if(data.fatal){statusEl.textContent='電台連不上,換一台試試';destroyHls();}
+  });
+  hls.loadSource(src);hls.attachMedia(el);
+}
 async function saveStations(){await kvSet('stations',stations.map(x=>({...x}))).catch(()=>{});}
 function renderRadio(){
   if(document.body.dataset.view!=='radio')return;
@@ -914,14 +943,15 @@ function playStation(i){
   $('music-cover').src='images/icon-192.png';
   if(audio!==audioNet){audio.pause();audio=audioNet;audio.volume=Number(volume.value);}
   audioLocal.pause();
-  audio.src=st.src;updateProgress();
+  attachSource(audio,st.src).then(()=>{if(radioMode&&currentStation===i)toggle();}).catch(()=>{statusEl.textContent='電台連不上,換一台試試';});
+  updateProgress();
   renderPlaylist();renderRadio();renderLyrics({title:st.name,lyrics:[]});
   if('mediaSession'in navigator){
     navigator.mediaSession.metadata=new MediaMetadata({title:st.name,artist:st.desc||'24/7 電台',album:'格莉奇音樂 電台',
       artwork:[{src:new URL('images/icon-192.png',location.href).href,sizes:'192x192',type:'image/png'}]});
     for(const a of['previoustrack','nexttrack','seekbackward','seekforward','seekto']){try{navigator.mediaSession.setActionHandler(a,null);}catch(e){}}
   }
-  toggle();syncMini();
+  syncMini();
 }
 
 /* --- 視圖導覽 + 迷你播放列 --- */
@@ -1045,7 +1075,7 @@ function setMediaSession(track){
   Object.entries(acts).forEach(([a,h])=>{try{navigator.mediaSession.setActionHandler(a,h);}catch(e){}});
 }
 function playTrack(i,autoplay){
-  radioMode=false;currentStation=-1;document.body.classList.remove('radio-on');
+  radioMode=false;currentStation=-1;document.body.classList.remove('radio-on');destroyHls();
   cursor=i;const t=tracks[i];if(!t)return;
   $('music-title').textContent=t.title;$('music-artist').textContent=(t.artist||'')+(t.album?' · '+t.album:'');
   $('music-cover').src=coverUrl(t);
@@ -1093,10 +1123,10 @@ function playTrack(i,autoplay){
   try{
     const st=await kvGet('stations');
     if(Array.isArray(st))stations=st;
-    if(await kvGet('stationsSeed')!==2){
+    if(await kvGet('stationsSeed')!==3){
       const have=new Set(stations.map(x=>x.src));
       DEFAULT_STATIONS.forEach(d=>{if(!have.has(d.src))stations.push({...d});});
-      await saveStations();await kvSet('stationsSeed',2);
+      await saveStations();await kvSet('stationsSeed',3);
     }
     // 先前用「網路音樂」加的電台(stream user 歌)遷去電台清單
     const oldRadios=library.filter(t=>t.kind==='user'&&t.stream&&t.src);
