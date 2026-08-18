@@ -194,7 +194,7 @@
       <span>曲庫 <span id="lib-count"></span></span>
       <span class="lib-hint">拖放音樂檔到頁面也可以</span>
       <button class="chip" id="import-btn" type="button"><svg class="ic" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2"><use href="#i-plus"/></svg> 加入歌曲</button>
-      <input id="import-input" type="file" multiple accept="audio/*,.mp3,.m4a,.flac,.ogg,.wav,.aac,.lrc" hidden>
+      <input id="import-input" type="file" multiple accept="audio/*,video/mp4,.mp3,.m4a,.mp4,.flac,.ogg,.wav,.aac,.lrc" hidden>
     </div>
     <div id="playlist" role="list"></div>
   </div>
@@ -215,6 +215,7 @@
 
 <script type="module">
 import { parseId3 } from './js/id3.js';
+import { parseMp4Meta } from './js/mp4meta.js';
 import { parseLrc, lineIndexAt } from './js/lrc.js';
 
 const $=id=>document.getElementById(id);
@@ -485,14 +486,18 @@ window.addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0;document
 window.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;document.body.classList.remove('dragging');importFiles(e.dataTransfer.files);});
 const base=n=>n.replace(/\.[^.]+$/,'');
 async function importFiles(files){
-  let added=0;
+  let added=0,skipped=0;
   for(const f of files||[]){
     if(/\.lrc$/i.test(f.name)){await attachLrc(f);continue;}
-    if(!f.type.startsWith('audio/')&&!/\.(mp3|m4a|flac|ogg|wav|aac)$/i.test(f.name))continue;
+    // mp4 進得來:<audio> 播 video/mp4 只取音軌
+    const isMp4=/\.(mp4|m4a)$/i.test(f.name)||/^(audio|video)\/mp4$/.test(f.type)||f.type==='audio/x-m4a';
+    if(!f.type.startsWith('audio/')&&!isMp4&&!/\.(mp3|flac|ogg|wav|aac)$/i.test(f.name)){skipped++;continue;}
     let buf;
-    try{buf=await f.arrayBuffer();}catch(e){console.warn('讀檔失敗',f.name,e);continue;}
+    try{buf=await f.arrayBuffer();}catch(e){console.warn('讀檔失敗',f.name,e);skipped++;continue;}
     let tag={title:null,artist:null,album:null,picture:null,lyrics:null};
-    try{tag=parseId3(buf);}catch(e){console.warn('ID3 解析失敗,用檔名',f.name,e);}
+    // metadata 路由:mp4 家族走 ilst atoms,其他走 ID3
+    try{tag=isMp4?{lyrics:null,...parseMp4Meta(buf)}:parseId3(buf);}
+    catch(e){console.warn('metadata 解析失敗,用檔名',f.name,e);}
     const song={
       id:'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),kind:'user',
       title:tag.title||base(f.name),artist:tag.artist||'本機音樂',album:tag.album||'',
@@ -503,7 +508,8 @@ async function importFiles(files){
     try{await songPut(song);}catch(e){statusEl.textContent='儲存失敗(空間不足?)';console.warn(e);continue;}
     tracks.push(song);added++;
   }
-  if(added){await saveOrder();renderPlaylist();statusEl.textContent='已加入 '+added+' 首';}
+  if(added){await saveOrder();renderPlaylist();}
+  if(added||skipped)statusEl.textContent=(added?'已加入 '+added+' 首':'')+(skipped?(added?'，':'')+'略過 '+skipped+' 個不支援的檔案':'');
 }
 async function attachLrc(f){
   const text=await f.text();
