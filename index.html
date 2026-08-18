@@ -269,6 +269,7 @@
     <div class="detail-actions">
       <button class="chip" id="pl-playall" type="button">▶ 播放整本</button>
       <button class="chip" id="pl-add" type="button">＋ 從曲庫加入</button>
+      <button class="chip" id="pl-import" type="button">＋ 匯入新歌</button>
       <span id="pl-count" class="lib-hint"></span>
     </div>
     <div id="pl-tracks"></div>
@@ -726,7 +727,7 @@ function renderDetail(){
   const pl=plById(currentPl);
   $('pl-name').textContent=pl?pl.name:'全部歌曲';
   $('pl-rename').hidden=$('pl-delete').hidden=!pl;
-  $('pl-add').hidden=!pl;
+  $('pl-add').hidden=!pl;$('pl-import').hidden=false;
   const items=detailItems();
   $('pl-count').textContent=items.length+' 首';
   renderRows($('pl-tracks'),items,{
@@ -810,17 +811,23 @@ function syncMini(){
 }
 
 /* ===== 匯入:選檔或拖放;.lrc 依主檔名配對使用者歌曲 ===== */
-$('import-btn').addEventListener('click',()=>$('import-input').click());
+$('import-btn').addEventListener('click',()=>{importTarget=null;$('import-input').click();});
+$('pl-import').addEventListener('click',()=>{importTarget=currentImportTarget();$('import-input').click();});
 // FileList 是 live 的,清 value 後就空;先快照成陣列再清,否則 async 迴圈只吃得到第一個檔
-$('import-input').addEventListener('change',e=>{importFiles([...e.target.files]);e.target.value='';});
+$('import-input').addEventListener('change',e=>{importFiles([...e.target.files],importTarget);importTarget=null;e.target.value='';});
 let dragDepth=0;
 window.addEventListener('dragover',e=>{e.preventDefault();});
 window.addEventListener('dragenter',e=>{e.preventDefault();if(++dragDepth===1)document.body.classList.add('dragging');});
 window.addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0;document.body.classList.remove('dragging');}});
-window.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;document.body.classList.remove('dragging');importFiles(e.dataTransfer.files);});
+window.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;document.body.classList.remove('dragging');importFiles([...e.dataTransfer.files],currentImportTarget());});
 const base=n=>n.replace(/\.[^.]+$/,'');
-async function importFiles(files){
-  let added=0,skipped=0;
+// 匯入時人在哪本歌單,新歌就順手掛進哪本(同時一定進曲庫)
+let importTarget=null;
+function currentImportTarget(){
+  return document.body.dataset.view==='detail'&&plById(currentPl)?currentPl:null;
+}
+async function importFiles(files,targetPl){
+  let added=0,skipped=0;const newIds=[];
   for(const f of files||[]){
     if(/\.lrc$/i.test(f.name)){await attachLrc(f);continue;}
     // mp4 進得來:<audio> 播 video/mp4 只取音軌
@@ -840,10 +847,12 @@ async function importFiles(files){
       lrc:tag.lyrics||null,addedAt:Date.now(),
     };
     try{await songPut(song);}catch(e){statusEl.textContent='儲存失敗(空間不足?)';console.warn(e);continue;}
-    library.push(song);added++;
+    library.push(song);newIds.push(song.id);added++;
   }
-  if(added){await saveOrder();rebuildQueue();renderPlaylist();}
-  if(added||skipped)statusEl.textContent=(added?'已加入 '+added+' 首':'')+(skipped?(added?'，':'')+'略過 '+skipped+' 個不支援的檔案':'');
+  const pl=plById(targetPl);
+  if(pl&&newIds.length){pl.ids.push(...newIds);await savePlaylists();}
+  if(added){await saveOrder();rebuildQueue();renderPlaylist();renderLists();renderDetail();}
+  if(added||skipped)statusEl.textContent=(added?'已加入 '+added+' 首'+(pl?'到「'+pl.name+'」':''):'')+(skipped?(added?'，':'')+'略過 '+skipped+' 個不支援的檔案':'');
 }
 async function attachLrc(f){
   const text=await f.text();
