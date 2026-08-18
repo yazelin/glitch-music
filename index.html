@@ -391,7 +391,10 @@ async function toggle(){
     catch(e){console.warn('visualizer unavailable; native audio continues',e);}
   }else audio.pause();
 }
-function setLyrics(show){
+function setLyrics(show,fromPop){
+  const was=lyricsPanel.classList.contains('show');
+  if(show&&!was&&!fromPop)history.pushState({v:document.body.dataset.view,pl:currentPl,lyr:1},'');
+  if(!show&&was&&!fromPop){history.back();return;} // 交給 popstate 關,保持 stack 平衡
   lyricsPanel.classList.toggle('show',show);lyricsPanel.setAttribute('aria-hidden',String(!show));lyricsToggle.setAttribute('aria-expanded',String(show));
   if(show)syncLyrics(true);
 }
@@ -721,7 +724,7 @@ $('pl-new').addEventListener('click',async()=>{
 
 /* --- 歌單內容頁(currentPl=null 代表「全部歌曲」) --- */
 function detailItems(){const pl=plById(currentPl);return pl?pl.ids.map(byId).filter(Boolean):library;}
-function openDetail(plId){currentPl=plId;renderDetail();setView('detail');}
+function openDetail(plId){currentPl=plId;setView('detail');renderDetail();}
 function renderDetail(){
   if(document.body.dataset.view!=='detail')return;
   const pl=plById(currentPl);
@@ -748,7 +751,7 @@ function renderDetail(){
   });
 }
 function setQueue(plId){queueSrc=plId;kvSet('queueSrc',plId).catch(()=>{});rebuildQueue();cursor=0;renderPlaylist();renderLists();}
-$('pl-back').addEventListener('click',()=>setView('lists'));
+$('pl-back').addEventListener('click',()=>history.back());
 $('pl-playall').addEventListener('click',()=>{
   if(!detailItems().length)return;
   setQueue(currentPl);playTrack(0,true);setView('player');
@@ -767,9 +770,9 @@ $('pl-delete').addEventListener('click',async()=>{
 });
 
 /* --- 從曲庫加入(選歌器) --- */
-$('pl-add').addEventListener('click',()=>{renderPicker();$('picker').hidden=false;});
-$('picker-done').addEventListener('click',()=>{$('picker').hidden=true;renderDetail();});
-$('picker').addEventListener('click',e=>{if(e.target.id==='picker')$('picker').hidden=true,renderDetail();});
+$('pl-add').addEventListener('click',()=>{renderPicker();$('picker').hidden=false;history.pushState({v:'detail',pl:currentPl,pk:1},'');});
+$('picker-done').addEventListener('click',()=>history.back());
+$('picker').addEventListener('click',e=>{if(e.target.id==='picker')history.back();});
 function renderPicker(){
   const pl=plById(currentPl);if(!pl)return;
   const box=$('picker-list');box.textContent='';
@@ -793,7 +796,8 @@ function renderPicker(){
 }
 
 /* --- 視圖導覽 + 迷你播放列 --- */
-function setView(v){
+function setView(v,fromPop){
+  if(!fromPop&&document.body.dataset.view!==v)history.pushState({v,pl:currentPl},'');
   document.body.dataset.view=v;
   document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.view===(v==='detail'?'lists':v)));
   if(v==='lists')renderLists();
@@ -802,6 +806,15 @@ function setView(v){
   closeOpenRow();
 }
 document.querySelectorAll('#tabbar button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+// Android 返回鍵=app 內後退:關疊層→退視圖→(到底才)離開 app
+window.addEventListener('popstate',e=>{
+  const st=e.state||{v:'player',pl:null};
+  if(!st.pk&&!$('picker').hidden){$('picker').hidden=true;renderDetail();}
+  if(!st.lyr&&lyricsPanel.classList.contains('show'))setLyrics(false,true);
+  if(st.pl!==undefined)currentPl=st.pl;
+  setView(st.v||'player',true);
+});
+history.replaceState({v:'player',pl:null},'');
 $('miniplayer').addEventListener('click',e=>{if(!e.target.closest('#mini-play'))setView('player');});
 $('mini-play').addEventListener('click',toggle);
 function syncMini(){
