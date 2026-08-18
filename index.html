@@ -248,7 +248,7 @@
         <span>正在播 · <span id="queue-name">全部歌曲</span> <span id="lib-count"></span></span>
         <span class="lib-hint">長按 ☰ 拖曳排序、左滑移除</span>
         <button class="chip" id="import-btn" type="button"><svg class="ic" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2"><use href="#i-plus"/></svg> 加入歌曲</button>
-        <input id="import-input" type="file" multiple accept="audio/*,video/mp4,.mp3,.m4a,.mp4,.flac,.ogg,.wav,.aac,.lrc" hidden>
+        <input id="import-input" type="file" multiple accept="audio/*,video/mp4,video/x-m4v,.mp3,.m4a,.mp4,.m4v,.flac,.ogg,.wav,.aac,.lrc" hidden>
       </div>
       <div id="playlist" role="list"></div>
     </div>
@@ -831,7 +831,7 @@ async function importFiles(files,targetPl){
   for(const f of files||[]){
     if(/\.lrc$/i.test(f.name)){await attachLrc(f);continue;}
     // mp4 進得來:<audio> 播 video/mp4 只取音軌
-    const isMp4=/\.(mp4|m4a)$/i.test(f.name)||/^(audio|video)\/mp4$/.test(f.type)||f.type==='audio/x-m4a';
+    const isMp4=/\.(mp4|m4a|m4v)$/i.test(f.name)||/^(audio|video)\/(mp4|x-m4v)$/.test(f.type)||f.type==='audio/x-m4a';
     if(!f.type.startsWith('audio/')&&!isMp4&&!/\.(mp3|flac|ogg|wav|aac)$/i.test(f.name)){skipped++;continue;}
     let buf;
     try{buf=await f.arrayBuffer();}catch(e){console.warn('讀檔失敗',f.name,e);skipped++;continue;}
@@ -923,7 +923,33 @@ function playTrack(i,autoplay){
   try{const last=await kvGet('last');const i=tracks.findIndex(t=>t.id===last);if(i>=0)start=i;}catch(e){}
   if(tracks.length)playTrack(start,false);else renderPlaylist();
   startVisualizer();
+  try{if(await kvGet('rescan')!==RESCAN_VER){await rescanTags();await kvSet('rescan',RESCAN_VER);}}catch(e){}
 })();
+
+/* ===== 啟動後補掃:解析器升級時,舊匯入的歌重新讀一次標籤(免重匯) ===== */
+const RESCAN_VER=2; // 解析器有感升級就 +1
+async function rescanTags(){
+  let fixed=0;
+  for(const t of library){
+    if(t.kind!=='user'||!t.blob)continue;
+    const wantTitle=t.title===base(t.name||'')||!t.title;
+    const wantArtist=!t.artist||t.artist==='本機音樂';
+    if(!wantTitle&&!wantArtist&&t.coverBlob)continue;
+    try{
+      const buf=await t.blob.arrayBuffer();
+      const isMp4=/\.(mp4|m4a|m4v)$/i.test(t.name||'')||/mp4|m4v/.test(t.blob.type||'');
+      const tag=isMp4?parseMp4Meta(buf):parseId3(buf);
+      let ch=false;
+      if(tag.title&&wantTitle){t.title=tag.title;ch=true;}
+      if(tag.artist&&wantArtist){t.artist=tag.artist;ch=true;}
+      if(tag.album&&!t.album){t.album=tag.album;ch=true;}
+      if(tag.picture&&!t.coverBlob){t.coverBlob=new Blob([tag.picture.data],{type:tag.picture.mime});ch=true;}
+      if(tag.lyrics&&!t.lrc){t.lrc=tag.lyrics;ch=true;}
+      if(ch){await songPut(t);fixed++;}
+    }catch(e){}
+  }
+  if(fixed){renderPlaylist();renderLists();renderDetail();if(tracks[cursor])syncMini();statusEl.textContent='已補讀 '+fixed+' 首的標籤';}
+}
 
 /* ===== PWA：SW 註冊＋離線徽章（實查）＋安裝鈕（三態） ===== */
 if('serviceWorker'in navigator){
