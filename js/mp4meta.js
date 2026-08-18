@@ -1,10 +1,10 @@
 /* 最小 MP4/M4A metadata 解析器:走 moov>udta>meta>ilst,取
-   ©nam(標題)/©ART(演出者)/©alb(專輯)/covr(封面)。
+   ©nam(標題)/©ART(演出者)/©alb(專輯)/covr(封面)/©lyr(歌詞)。
    box = [4B size][4B type][payload];meta 是 full box(type 後多 4B 版本旗標)。
    ponytail: size=1 的 64-bit box 直接放棄(音樂檔的 moov 不會用到);
    aART/其他欄位不收,要補再說。 */
 
-const EMPTY = { title: null, artist: null, album: null, picture: null };
+const EMPTY = { title: null, artist: null, album: null, picture: null, lyrics: null };
 
 function walk(b, start, end, cb) {
   let i = start;
@@ -52,6 +52,7 @@ export function parseMp4Meta(buffer) {
     const text = dec.decode(payload).trim();
     if (!text) return;
     if (type === "©nam" && !out.title) out.title = text;
+    if (type === "©lyr" && !out.lyrics) out.lyrics = text;
     if (type === "©ART" && !out.artist) out.artist = text;
     if (type === "©alb" && !out.album) out.album = text;
   });

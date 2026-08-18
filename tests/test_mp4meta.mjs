@@ -33,6 +33,12 @@ test("moov>udta>meta>ilst 的標題/演出者/專輯", () => {
   assert.equal(r.album, "MP4專輯");
 });
 
+test("©lyr 歌詞", () => {
+  const f = file(box("moov", box("udta", meta(box("ilst", item("©lyr", 1, enc.encode("[00:01.00]第一句\n第二句")))))));
+  const r = parseMp4Meta(f);
+  assert.ok(r.lyrics.includes("[00:01.00]第一句"));
+});
+
 test("covr 封面:dataType 13=jpeg、14=png", () => {
   const jpg = [0xff, 0xd8, 0xff, 1, 2];
   const f = file(box("moov", box("udta", meta(box("ilst", item("covr", 13, jpg))))));
@@ -53,7 +59,7 @@ test("moov 排在大 mdat 後面也找得到", () => {
 });
 
 test("沒有 metadata 或不是 mp4 都回全空,不丟例外", () => {
-  const empty = { title: null, artist: null, album: null, picture: null };
+  const empty = { title: null, artist: null, album: null, picture: null, lyrics: null };
   assert.deepEqual(parseMp4Meta(file(box("ftyp", enc.encode("isom")), box("moov"))), empty);
   assert.deepEqual(parseMp4Meta(new Uint8Array([1, 2, 3]).buffer), empty);
   assert.deepEqual(parseMp4Meta(new ArrayBuffer(0)), empty);
