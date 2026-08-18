@@ -138,10 +138,10 @@
   .view{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;background:#090f14;
     transition:transform .22s ease,visibility 0s linear .22s;transform:translateX(0)}
   .view.side{transform:translateX(102%);visibility:hidden}
-  body[data-view=lists] #view-lists,body[data-view=detail] #view-detail{transform:translateX(0);visibility:visible;transition-delay:0s}
+  body[data-view=lists] #view-lists,body[data-view=detail] #view-detail,body[data-view=radio] #view-radio{transform:translateX(0);visibility:visible;transition-delay:0s}
   #view-lists,#view-detail{z-index:5}
   #view-detail{z-index:6}
-  #pl-list,#pl-tracks{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(143,216,238,.34) transparent}
+  #pl-list,#pl-tracks,#radio-list{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(143,216,238,.34) transparent}
   .detail-actions{flex:none;display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--hair)}
   .plrow{display:flex;width:100%;align-items:center;gap:12px;padding:12px 16px;border:0;background:transparent;color:#cdd8de;cursor:pointer;text-align:left;font-size:.86rem;border-bottom:1px solid rgba(255,255,255,.04)}
   .plrow:hover{background:rgba(255,255,255,.05)}
@@ -259,6 +259,11 @@
     </div>
   </div>
 
+  <div class="view side" id="view-radio">
+    <div class="lib-head"><span>電台</span><span class="lib-hint">選一台就一直聽,不輪播</span><button class="chip" id="radio-add" type="button">＋ 加電台</button></div>
+    <div id="radio-list"></div>
+  </div>
+
   <div class="view side" id="view-lists">
     <div class="lib-head"><span>歌單</span><span class="lib-hint"></span><button class="chip" id="net-add" type="button">＋ 網路音樂</button><button class="chip" id="pl-new" type="button">＋ 新歌單</button></div>
     <div id="pl-list"></div>
@@ -304,6 +309,7 @@
 <nav id="tabbar">
   <button data-view="player" class="on" type="button">播放器</button>
   <button data-view="lists" type="button">歌單</button>
+  <button data-view="radio" type="button">電台</button>
 </nav>
 
 <footer>
@@ -370,8 +376,9 @@ function coverUrl(t){
   return 'images/icon-192.png';
 }
 function updateProgress(){
-  const live=tracks[cursor]?.stream||audio.duration===Infinity;
+  const live=radioMode||tracks[cursor]?.stream||audio.duration===Infinity;
   progress.disabled=$('music-back').disabled=$('music-forward').disabled=live;
+  $('music-prev').disabled=$('music-next').disabled=radioMode;
   if(live){
     progress.value=0;rangeFill(progress,0);
     curEl.textContent='';durEl.textContent='LIVE';
@@ -476,7 +483,7 @@ function detectStream(){
     t.stream=true;songPut(t).catch(()=>{});renderPlaylist();updateProgress();
   }
 }
-function step(d){if(tracks.length)playTrack((cursor+d+tracks.length)%tracks.length,true);}
+function step(d){if(radioMode)return;if(tracks.length)playTrack((cursor+d+tracks.length)%tracks.length,true);}
 
 /* ===== 播放模式 ===== */
 const MODES={all:'循環',one:'單曲',shuffle:'隨機'};
@@ -775,12 +782,10 @@ $('net-add').addEventListener('click',async()=>{
   const clean=url.trim();
   const name=prompt('名稱',(()=>{try{return new URL(clean).hostname;}catch(e){return '網路音樂';}})());
   if(name===null)return;
-  // icecast 電台的 duration 是滾動估計值不是 Infinity,自動偵測不可靠——加入時直接問
-  const isRadio=confirm('這是 24/7 電台/直播串流嗎?\n(確定=電台,取消=一般音檔)');
   const id=await songId(new TextEncoder().encode('url:'+clean).buffer);
   if(library.some(t=>t.id===id)){statusEl.textContent='這個網址已在曲庫';return;}
-  const song={id,kind:'user',title:(name||'網路音樂').trim()||'網路音樂',artist:isRadio?'24/7 電台':'網路來源',album:'',
-    name:clean,src:clean,stream:isRadio||undefined,blob:null,coverBlob:null,lrc:null,addedAt:Date.now()};
+  const song={id,kind:'user',title:(name||'網路音樂').trim()||'網路音樂',artist:'網路來源',album:'',
+    name:clean,src:clean,blob:null,coverBlob:null,lrc:null,addedAt:Date.now()};
   try{await songPut(song);}catch(e){statusEl.textContent='儲存失敗';return;}
   library.push(song);await saveOrder();rebuildQueue();renderPlaylist();renderLists();
   statusEl.textContent='已加入網路音樂「'+song.title+'」';
@@ -864,6 +869,59 @@ function renderPicker(){
   });
 }
 
+/* --- 電台:自管清單(內建只是預設值,可刪可加),完全獨立於曲庫/歌單 --- */
+const DEFAULT_STATIONS=[
+  // 飛碟的端點=官網播放器所用的公開直連;電台若更換 CDN 會失效,清單裡可刪可自行更新
+  {id:'st-uforadio',name:'飛碟電台 UFO FM92.1',src:'https://stream.rcs.revma.com/em90w4aeewzuv',desc:'台灣 · 流行音樂與談話'},
+  {id:'st-groovesalad',name:'SomaFM · Groove Salad',src:'https://ice1.somafm.com/groovesalad-128-mp3',desc:'環境電子'},
+  {id:'st-secretagent',name:'SomaFM · Secret Agent',src:'https://ice1.somafm.com/secretagent-128-mp3',desc:'間諜爵士'},
+  {id:'st-radioparadise',name:'Radio Paradise · Main Mix',src:'https://stream.radioparadise.com/aac-128',desc:'精選搖滾民謠'},
+  {id:'st-listenmoe',name:'LISTEN.moe · J-POP',src:'https://listen.moe/fallback',desc:'動漫音樂'},
+];
+let stations=[],radioMode=false,currentStation=-1;
+async function saveStations(){await kvSet('stations',stations.map(x=>({...x}))).catch(()=>{});}
+function renderRadio(){
+  if(document.body.dataset.view!=='radio')return;
+  const items=stations.map(st=>({id:st.id,title:st.name,artist:st.desc||new URL(st.src).hostname,stream:true,cover:'images/icon-192.png'}));
+  renderRows($('radio-list'),items,{
+    nowId:radioMode?stations[currentStation]?.id:null,
+    onPlay:i=>{playStation(i);setView('player');},
+    canRemove:()=>true,removeLabel:'刪除',
+    onRemove:async i=>{
+      if(radioMode&&i===currentStation){audio.pause();radioMode=false;currentStation=-1;}
+      else if(radioMode&&i<currentStation)currentStation--;
+      stations.splice(i,1);await saveStations();renderRadio();
+    },
+  });
+}
+$('radio-add').addEventListener('click',async()=>{
+  const url=prompt('電台串流網址(直連 mp3/aac)','https://');
+  if(!url||!/^https?:\/\//i.test(url.trim()))return;
+  const clean=url.trim();
+  const name=prompt('電台名稱',(()=>{try{return new URL(clean).hostname;}catch(e){return '我的電台';}})());
+  if(name===null)return;
+  if(stations.some(x=>x.src===clean)){statusEl.textContent='這個電台已在清單';return;}
+  stations.push({id:'st'+Date.now().toString(36),name:(name||'我的電台').trim()||'我的電台',src:clean});
+  await saveStations();renderRadio();
+});
+// 電台模式:選一台就一直聽;不輪播、不上一首/下一首,轉台=回電台頁點別台
+function playStation(i){
+  const st=stations[i];if(!st)return;
+  radioMode=true;currentStation=i;
+  $('music-title').textContent=st.name;$('music-artist').textContent=(st.desc||'')+' · 24/7 電台';
+  $('music-cover').src='images/icon-192.png';
+  if(audio!==audioNet){audio.pause();audio=audioNet;audio.volume=Number(volume.value);}
+  audioLocal.pause();
+  audio.src=st.src;updateProgress();
+  renderPlaylist();renderRadio();renderLyrics({title:st.name,lyrics:[]});
+  if('mediaSession'in navigator){
+    navigator.mediaSession.metadata=new MediaMetadata({title:st.name,artist:st.desc||'24/7 電台',album:'格莉奇音樂 電台',
+      artwork:[{src:new URL('images/icon-192.png',location.href).href,sizes:'192x192',type:'image/png'}]});
+    for(const a of['previoustrack','nexttrack','seekbackward','seekforward','seekto']){try{navigator.mediaSession.setActionHandler(a,null);}catch(e){}}
+  }
+  toggle();syncMini();
+}
+
 /* --- 視圖導覽 + 迷你播放列 --- */
 function setView(v,fromPop){
   if(!fromPop&&document.body.dataset.view!==v)history.pushState({v,pl:currentPl},'');
@@ -871,6 +929,7 @@ function setView(v,fromPop){
   document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.view===(v==='detail'?'lists':v)));
   if(v==='lists')renderLists();
   if(v==='detail')renderDetail();
+  if(v==='radio')renderRadio();
   $('miniplayer').hidden=v==='player';
   closeOpenRow();
 }
@@ -887,6 +946,12 @@ history.replaceState({v:'player',pl:null},'');
 $('miniplayer').addEventListener('click',e=>{if(!e.target.closest('#mini-play'))setView('player');});
 $('mini-play').addEventListener('click',toggle);
 function syncMini(){
+  if(radioMode){
+    $('mini-cover').src='images/icon-192.png';
+    $('mini-title').textContent=(stations[currentStation]?.name||'電台')+' · LIVE';
+    $('mini-play-icon').setAttribute('href',audio.paused?'#i-play':'#i-pause');
+    return;
+  }
   const t=tracks[cursor];if(!t)return;
   $('mini-cover').src=coverUrl(t);$('mini-title').textContent=t.title;
   $('mini-play-icon').setAttribute('href',audio.paused?'#i-play':'#i-pause');
@@ -978,6 +1043,7 @@ function setMediaSession(track){
   Object.entries(acts).forEach(([a,h])=>{try{navigator.mediaSession.setActionHandler(a,h);}catch(e){}});
 }
 function playTrack(i,autoplay){
+  radioMode=false;currentStation=-1;
   cursor=i;const t=tracks[i];if(!t)return;
   $('music-title').textContent=t.title;$('music-artist').textContent=(t.artist||'')+(t.album?' · '+t.album:'');
   $('music-cover').src=coverUrl(t);
@@ -1022,6 +1088,24 @@ function playTrack(i,autoplay){
   try{const last=await kvGet('last');const i=tracks.findIndex(t=>t.id===last);if(i>=0)start=i;}catch(e){}
   if(tracks.length)playTrack(start,false);else renderPlaylist();
   startVisualizer();
+  try{
+    const st=await kvGet('stations');
+    if(Array.isArray(st))stations=st;
+    if(await kvGet('stationsSeed')!==2){
+      const have=new Set(stations.map(x=>x.src));
+      DEFAULT_STATIONS.forEach(d=>{if(!have.has(d.src))stations.push({...d});});
+      await saveStations();await kvSet('stationsSeed',2);
+    }
+    // 先前用「網路音樂」加的電台(stream user 歌)遷去電台清單
+    const oldRadios=library.filter(t=>t.kind==='user'&&t.stream&&t.src);
+    for(const r of oldRadios){
+      if(!stations.some(x=>x.src===r.src))stations.push({id:'st'+r.id.slice(1,9),name:r.title,src:r.src});
+      await songDel(r.id).catch(()=>{});
+      library.splice(library.indexOf(r),1);
+      playlists.forEach(pl=>{pl.ids=pl.ids.filter(id=>id!==r.id);});
+    }
+    if(oldRadios.length){await saveStations();await savePlaylists();await saveOrder();rebuildQueue();renderPlaylist();renderLists();}
+  }catch(e){}
   try{if(await kvGet('hashids')!==1){await migrateHashIds();await kvSet('hashids',1);}}catch(e){}
   try{if(await kvGet('rescan')!==RESCAN_VER){await rescanTags();await kvSet('rescan',RESCAN_VER);}}catch(e){}
 })();
