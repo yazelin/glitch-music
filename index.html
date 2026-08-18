@@ -879,6 +879,7 @@ const DEFAULT_STATIONS=[
   {id:'st-pbs-tcs',name:'警廣 臺中臺',src:'https://stream.pbs.gov.tw/live/TCS/playlist.m3u8',desc:'台灣 · 地區路況'},
   {id:'st-pbs-kss',name:'警廣 高雄臺',src:'https://stream.pbs.gov.tw/live/KSS/playlist.m3u8',desc:'台灣 · 地區路況'},
   {id:'st-uforadio',name:'飛碟電台 UFO FM92.1',src:'https://stream.rcs.revma.com/em90w4aeewzuv',desc:'台灣 · 流行音樂與談話'},
+  {id:'st-ner',name:'國立教育廣播電臺',src:'https://wowza1.ner.gov.tw/TPFM/1/playlist.m3u8',desc:'台灣 · 音樂與知識節目'},
   {id:'st-groovesalad',name:'SomaFM · Groove Salad',src:'https://ice1.somafm.com/groovesalad-128-mp3',desc:'環境電子'},
   {id:'st-secretagent',name:'SomaFM · Secret Agent',src:'https://ice1.somafm.com/secretagent-128-mp3',desc:'間諜爵士'},
   {id:'st-radioparadise',name:'Radio Paradise · Main Mix',src:'https://stream.radioparadise.com/aac-128',desc:'精選搖滾民謠'},
@@ -887,8 +888,8 @@ const DEFAULT_STATIONS=[
 let stations=[],radioMode=false,currentStation=-1;
 /* HLS 電台(如警廣):Safari/iOS 原生播;Chrome/Android lazy 載自架 hls.js。
    離開電台或換台一律 destroy,避免殘留的 loader 繼續抓片段。 */
-let hls=null,hlsLibReady=null;
-function destroyHls(){if(hls){try{hls.destroy();}catch(e){}hls=null;}}
+let hls=null,hlsLibReady=null,nativeHlsTimer=0;
+function destroyHls(){clearTimeout(nativeHlsTimer);if(hls){try{hls.destroy();}catch(e){}hls=null;}}
 function loadHlsLib(){
   if(window.Hls)return Promise.resolve();
   if(hlsLibReady)return hlsLibReady;
@@ -899,16 +900,30 @@ function loadHlsLib(){
   });
   return hlsLibReady;
 }
-async function attachSource(el,src){
-  destroyHls();
-  if(!/\.m3u8($|\?)/i.test(src)){el.src=src;return;}
-  if(el.canPlayType('application/vnd.apple.mpegurl')){el.src=src;return;} // Safari/iOS 原生
+async function attachHlsJs(el,src){
   await loadHlsLib();
   hls=new window.Hls({enableWorker:false});
   hls.on(window.Hls.Events.ERROR,(ev,data)=>{
     if(data.fatal){statusEl.textContent='電台連不上,換一台試試';destroyHls();}
   });
   hls.loadSource(src);hls.attachMedia(el);
+}
+async function attachSource(el,src){
+  destroyHls();clearTimeout(nativeHlsTimer);
+  if(!/\.m3u8($|\?)/i.test(src)){el.src=src;return;}
+  if(el.canPlayType('application/vnd.apple.mpegurl')){
+    // 原生 HLS 各家伺服器相容性不一(警廣通、教育電台不通):
+    // 3.5 秒內沒起來就自動改走 hls.js,通用自癒不逐台判
+    el.src=src;
+    nativeHlsTimer=setTimeout(()=>{
+      if(el===audio&&radioMode&&(el.paused||el.currentTime<0.5)){
+        el.removeAttribute('src');el.load();
+        attachHlsJs(el,src).then(()=>{if(radioMode)toggle();}).catch(()=>{statusEl.textContent='電台連不上,換一台試試';});
+      }
+    },3500);
+    return;
+  }
+  await attachHlsJs(el,src);
 }
 async function saveStations(){await kvSet('stations',stations.map(x=>({...x}))).catch(()=>{});}
 function renderRadio(){
@@ -1123,10 +1138,10 @@ function playTrack(i,autoplay){
   try{
     const st=await kvGet('stations');
     if(Array.isArray(st))stations=st;
-    if(await kvGet('stationsSeed')!==3){
+    if(await kvGet('stationsSeed')!==4){
       const have=new Set(stations.map(x=>x.src));
       DEFAULT_STATIONS.forEach(d=>{if(!have.has(d.src))stations.push({...d});});
-      await saveStations();await kvSet('stationsSeed',3);
+      await saveStations();await kvSet('stationsSeed',4);
     }
     // 先前用「網路音樂」加的電台(stream user 歌)遷去電台清單
     const oldRadios=library.filter(t=>t.kind==='user'&&t.stream&&t.src);
