@@ -11,9 +11,11 @@
 
 | 功能 | 說明 |
 | --- | --- |
-| 播放清單 | `tracks.json` 資料驅動；加歌＝丟 mp3＋封面＋改 JSON，不用改程式 |
+| 內建曲庫 | `tracks.json` 資料驅動；加歌＝丟 mp3＋封面＋改 JSON，不用改程式 |
+| 本機曲庫 | 「加入歌曲」或拖放音樂檔：存進瀏覽器 IndexedDB（不上傳雲端），自動讀 ID3 標籤（標題／演出者／專輯／封面／內嵌歌詞），可刪除、排序，離線可播 |
+| 播放模式 | 循環全部／單曲循環／隨機，加上一首／下一首（含鎖屏控制），設定會記住 |
 | 頻譜視覺 | 桌面與 Android 接 Web Audio 真頻譜；iOS 不接 audio graph（背景會被掛起而斷音），改用時間函數模擬動畫 |
-| 歌詞 | 側欄面板，段落與副歌樣式，資料在 `tracks.json` 內 |
+| 動態歌詞 | LRC 時間軸逐行高亮、自動捲動、點行跳播。自己的 mp3 讀內嵌 ID3 歌詞與同名 `.lrc`；沒有時間軸就退回靜態顯示。〈格莉奇 4KB〉的時間軸由 `scripts/align_lrc.py` 以 whisper 逐字時間戳對齊官方歌詞產生 |
 | 鎖屏控制 | Media Session：播放／暫停、±10 秒、進度、（多首時）上一首／下一首 |
 | PWA | 可安裝；SW 快取音檔並對 Range 請求合成 206，離線可播 |
 | 離線徽章 | 「已可離線」由 SW 逐項 `cache.match` 實查後才顯示，不自我宣告 |
@@ -33,6 +35,12 @@
 git clone https://github.com/yazelin/glitch-music.git
 cd glitch-music
 python3 -m http.server 8000
+```
+
+單元測試（LRC 與 ID3 解析器）：
+
+```bash
+node --test tests/test_lrc.mjs tests/test_id3.mjs
 ```
 
 改了 `index.html`、`manifest.webmanifest`、`tracks.json`、圖或音檔之後：
