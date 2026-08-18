@@ -31,16 +31,18 @@
     --ink:#e9f8fc; --ink2:#aebbc2; --mute:#8a9aa3; --dim:#5d6b74;
     --fg-rgb:255,255,255;
     --hair:rgba(var(--fg-rgb),.07);
+    --line:rgba(var(--fg-rgb),.05);
   }
   body[data-theme=light]{
     --cy:#0d94b8; --mint:#0fa878; --purple:#7d4fe0;
     --cy-rgb:13,148,184; --mint-rgb:15,168,120; --purple-rgb:125,79,224;
-    --bg0:#eef4f6; --bg1:#e2ebee; --bg2:#e8eff1;
-    --ctrl-a:#dde7ea; --ctrl-b:#d2dfe3;
+    --bg0:#eef4f6; --bg1:#dde8ec; --bg2:#d8e4e9;
+    --ctrl-a:#e4edf0; --ctrl-b:#d6e2e6;
     --vis-a:#dceef2; --vis-b:#e6e0f5; --vis-c:#d5ebee;
     --panel-rgb:214,232,238; --panel2-rgb:224,236,240;
-    --ink:#12262e; --ink2:#31474f; --mute:#5c727b; --dim:#7b8f97;
+    --ink:#12262e; --ink2:#31474f; --mute:#4c626b; --dim:#6b7f87;
     --fg-rgb:10,30,40;
+    --hair:rgba(var(--fg-rgb),.16); --line:rgba(var(--fg-rgb),.12);
   }
   body[data-theme=dark2]{
     --cy:#ff8a3d; --mint:#ff7cb0; --purple:#cdea6a;
@@ -51,12 +53,13 @@
   body[data-theme=light2]{
     --cy:#c75a10; --mint:#d61f6f; --purple:#6a9e1f;
     --cy-rgb:199,90,16; --mint-rgb:214,31,111; --purple-rgb:106,158,31;
-    --bg0:#f6efee; --bg1:#eee2e4; --bg2:#f1e8e9;
-    --ctrl-a:#eadddf; --ctrl-b:#e3d2d6;
+    --bg0:#f6efee; --bg1:#ecdcdf; --bg2:#e8d6da;
+    --ctrl-a:#f0e3e5; --ctrl-b:#e5d2d6;
     --vis-a:#f2dce4; --vis-b:#f5e9dc; --vis-c:#eed5e2;
     --panel-rgb:238,214,224; --panel2-rgb:240,224,230;
-    --ink:#2e1220; --ink2:#4f3140; --mute:#7b5c6a; --dim:#977b88;
+    --ink:#2e1220; --ink2:#4f3140; --mute:#6b4c5a; --dim:#876b78;
     --fg-rgb:40,10,25;
+    --hair:rgba(var(--fg-rgb),.16); --line:rgba(var(--fg-rgb),.12);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none}
@@ -135,7 +138,7 @@
   .music-lyrics-close:hover{color:#fff;background:rgba(var(--fg-rgb),.07)}
   .music-lyrics-scroll{flex:1;min-height:0;overflow-y:auto;padding:13px 18px 28px;user-select:text;
     scrollbar-width:thin;scrollbar-color:rgba(143,216,238,.34) transparent}
-  .music-lyrics-section{padding:11px 0 14px;border-bottom:1px solid rgba(var(--fg-rgb),.045)}
+  .music-lyrics-section{padding:11px 0 14px;border-bottom:1px solid var(--line)}
   .music-lyrics-section:last-child{border-bottom:0}
   .music-lyrics-label{display:inline-block;margin-bottom:6px;color:var(--cy);font:700 .61rem/1.4 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}
   .music-lyrics-section p{margin:0;color:var(--ink2);font-size:.76rem;line-height:1.85;white-space:pre-line}
@@ -156,7 +159,8 @@
   .trk-t small{color:var(--dim);font-size:.66rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
   .live-badge{display:inline-block;margin-left:6px;padding:0 5px;border-radius:5px;vertical-align:1px;
     font:700 .56rem/1.6 ui-monospace,monospace;letter-spacing:.08em;color:#ff9d9d;border:1px solid rgba(255,120,120,.45);background:rgba(255,80,80,.1)}
-  .sec-head{padding:8px 16px 4px;color:var(--dim);font-size:.64rem;letter-spacing:.12em;border-top:1px solid rgba(var(--fg-rgb),.05)}
+  .sec-head{padding:8px 16px 4px;color:var(--dim);font-size:.64rem;letter-spacing:.12em;border-top:1px solid var(--line)}
+  body[data-theme=light] .live-badge,body[data-theme=light2] .live-badge{color:#b3261e;border-color:rgba(179,38,30,.5);background:rgba(179,38,30,.08)}
   .trk.now .trk-t small{color:rgba(var(--mint-rgb),.6)}
   .trk-act{display:flex;gap:2px;flex:none;opacity:.55}
   .trk:hover .trk-act{opacity:1}
@@ -178,7 +182,7 @@
   #view-detail{z-index:6}
   #pl-list,#pl-tracks,#radio-list{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(143,216,238,.34) transparent}
   .detail-actions{flex:none;display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--hair)}
-  .plrow{display:flex;width:100%;align-items:center;gap:12px;padding:12px 16px;border:0;background:transparent;color:var(--ink2);cursor:pointer;text-align:left;font-size:.86rem;border-bottom:1px solid rgba(var(--fg-rgb),.04)}
+  .plrow{display:flex;width:100%;align-items:center;gap:12px;padding:12px 16px;border:0;background:transparent;color:var(--ink2);cursor:pointer;text-align:left;font-size:.86rem;border-bottom:1px solid var(--line)}
   .plrow:hover{background:rgba(var(--fg-rgb),.05)}
   .plrow .pl-ico{display:grid;place-items:center;width:38px;height:38px;border-radius:9px;background:rgba(var(--mint-rgb),.1);color:var(--mint);font-size:1rem;flex:none}
   .plrow small{display:block;color:var(--dim);font-size:.66rem}
