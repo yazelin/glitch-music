@@ -379,6 +379,9 @@ const lyricsPanel=$('music-lyrics'),lyricsToggle=$('music-lyrics-toggle');
 // iOS 背景會掛起 AudioContext；createMediaElementSource 一接就拆不回來，聲音會跟著斷。
 // 所以 iOS 完全不接 audio graph，頻譜走 draw() 裡的無資料 fallback 動畫——背景播放優先於視覺。
 const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+// Android 螢幕關閉時 Chrome 會掛起 AudioContext 省電——本機歌走頻譜 graph 就會斷音。
+// 行動裝置一律不接 graph(頻譜用模擬動畫),桌面才接真頻譜。
+const MOBILE=IOS||/Android/i.test(navigator.userAgent);
 /* 主題:CSS 端吃 body[data-theme] 的 token;canvas 端吃 THEMES(色相偏移/
    波形色/混色模式/明度)。淺色底不能用加法發光(lighter 疊到白),換 source-over+深筆畫。 */
 const THEMES={
@@ -463,7 +466,7 @@ function updateProgress(){
   syncLyrics();
 }
 async function ensureGraph(){
-  if(IOS||audio!==audioLocal)return;
+  if(MOBILE||audio!==audioLocal)return;
   const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
   if(!actx)actx=new AC();
   if(actx.state==='suspended')await actx.resume();
@@ -617,7 +620,12 @@ function draw(now){
   particles.forEach(p=>{p.r+=p.speed*(1+energy);p.life-=.012+p.speed*.004;const x=cx+Math.cos(p.angle)*p.r,y=cy+Math.sin(p.angle)*p.r;ctx.beginPath();ctx.arc(x,y,p.size,0,Math.PI*2);ctx.fillStyle=`hsla(${p.hue},95%,${TH.lum+6}%,${p.life*.75})`;ctx.fill();});
   ctx.restore();frame=requestAnimationFrame(draw);
 }
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!audio.paused)startVisualizer();});
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible')return;
+  if(!audio.paused)startVisualizer();
+  // 被系統暫停(非使用者按的):body 還掛著 playing 但元件停了→續播
+  else if(document.body.classList.contains('playing'))audio.play().catch(()=>{});
+});
 
 /* ===== 歌詞:LRC 動態(逐行高亮+自動捲)或靜態段落 ===== */
 function renderLyrics(track){
