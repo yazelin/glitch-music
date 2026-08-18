@@ -32,9 +32,9 @@ export function parseMp4Meta(buffer) {
 
   const moov = findChild(b, 0, b.length, "moov");
   if (!moov) return out;
+  // iTunes 慣例是 moov>udta>meta>ilst;部分工具寫成 moov>meta>ilst,兩條都找
   const udta = findChild(b, moov[0], moov[1], "udta");
-  if (!udta) return out;
-  const meta = findChild(b, udta[0], udta[1], "meta", true);
+  const meta = (udta && findChild(b, udta[0], udta[1], "meta", true)) || findChild(b, moov[0], moov[1], "meta", true);
   if (!meta) return out;
   const ilst = findChild(b, meta[0], meta[1], "ilst");
   if (!ilst) return out;
