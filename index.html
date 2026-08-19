@@ -1337,8 +1337,11 @@ if('serviceWorker'in navigator){
 let deferredPrompt=null;const INSTALL_KEY='glitchmusic:install';
 window.addEventListener('beforeinstallprompt',e=>{
   e.preventDefault();deferredPrompt=e;
-  let st='';try{st=localStorage.getItem(INSTALL_KEY)||'';}catch(err){}
-  if(st!=='installed')$('install-btn').style.display='inline-block';
+  // beforeinstallprompt 只在「現在可安裝(=尚未安裝)」時送達;收到它就代表
+  // app 不在安裝狀態——清掉移除 app 後殘留的 installed 旗標,並顯示按鈕。
+  // (原本 gate 在 installed 旗標,導致「裝過→移除→回站」按鈕永遠不出現。)
+  try{localStorage.removeItem(INSTALL_KEY);}catch(err){}
+  $('install-btn').style.display='inline-block';
 });
 $('install-btn').addEventListener('click',async()=>{
   if(!deferredPrompt)return;
