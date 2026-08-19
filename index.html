@@ -76,7 +76,9 @@
     display:flex;flex-direction:column}
   button{font:inherit}
 
-  header{flex:none;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--hair);background:var(--bg1)}
+  /* iOS 全螢幕(加主畫面/standalone)沒有網址列,header 會頂到動態島/瀏海下面
+     被時間與動態島蓋住、按鈕點不到。頂部 padding 加上安全區高度把 header 推下來。 */
+  header{flex:none;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;border-bottom:1px solid var(--hair);background:var(--bg1)}
   header img{width:26px;height:26px;border-radius:7px}
   header b{font-size:.92rem;letter-spacing:.02em}
   header .sp{flex:1}
