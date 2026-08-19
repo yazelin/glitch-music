@@ -50,6 +50,20 @@
       "type": "image/webp",
       "form_factor": "narrow",
       "label": "電台分頁"
+    },
+    {
+      "src": "images/shot-wide-player.webp",
+      "sizes": "1280x800",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "桌面播放器與動態頻譜"
+    },
+    {
+      "src": "images/shot-wide-lyrics.webp",
+      "sizes": "1280x800",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "動態歌詞逐行高亮"
     }
   ]
 }
