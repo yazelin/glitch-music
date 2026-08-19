@@ -38,16 +38,16 @@
   ],
   "screenshots": [
     {
-      "src": "images/shot-player.png",
+      "src": "images/shot-player.webp",
       "sizes": "540x1110",
-      "type": "image/png",
+      "type": "image/webp",
       "form_factor": "narrow",
       "label": "播放器與動態頻譜"
     },
     {
-      "src": "images/shot-radio.png",
+      "src": "images/shot-radio.webp",
       "sizes": "540x1110",
-      "type": "image/png",
+      "type": "image/webp",
       "form_factor": "narrow",
       "label": "電台分頁"
     }
