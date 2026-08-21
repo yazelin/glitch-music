@@ -106,7 +106,9 @@
     box-shadow:0 18px 45px rgba(0,0,0,.55),0 0 calc(22px + var(--music-bass)*35px) hsla(var(--music-hue),90%,62%,calc(.2 + var(--music-energy)*.45));
     transform:scale(calc(1 + var(--music-bass)*.045));transition:transform .08s linear;z-index:2}
   .music-artwork img{display:block;width:100%;height:100%;object-fit:cover;border-radius:17px;background:var(--bg0)}
-  .music-artwork::after{content:"4KB";position:absolute;right:12px;bottom:11px;padding:2px 7px;border-radius:6px;
+  /* 角標由曲目資料決定（tracks.json 的 badge）。原本寫死 "4KB"，結果每一首歌
+     都被貼上那三個字 —— 分享連結播進來的歌也不例外。 */
+  .music-artwork[data-badge]::after{content:attr(data-badge);position:absolute;right:12px;bottom:11px;padding:2px 7px;border-radius:6px;
     color:#e9fbff;background:rgba(5,9,13,.66);backdrop-filter:blur(3px);border:1px solid rgba(var(--mint-rgb),.4);font:700 .62rem/1.5 ui-monospace,monospace;letter-spacing:.12em}
   .music-now{position:absolute;left:18px;top:15px;z-index:3;color:rgba(var(--fg-rgb),.6);font-size:.67rem;letter-spacing:.14em;text-transform:uppercase}
   .music-live{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:7px;background:var(--mint);box-shadow:0 0 10px var(--mint)}
@@ -1302,6 +1304,8 @@ function playTrack(i,autoplay){
   cursor=i;const t=tracks[i];if(!t)return;
   $('music-title').textContent=t.title;$('music-artist').textContent=(t.artist||'')+(t.album?' · '+t.album:'');
   $('music-cover').src=coverUrl(t);
+  const art=document.querySelector('.music-artwork');
+  if(art){ if(t.badge) art.setAttribute('data-badge',t.badge); else art.removeAttribute('data-badge'); }
   // 跨站 URL(電台/網路歌)走 audioNet;本機 blob 與站內音檔走 audioLocal
   const useNet=!!t.src&&/^https?:/i.test(t.src)&&new URL(t.src,location.href).origin!==location.origin;
   const next=useNet?audioNet:audioLocal;
