@@ -530,7 +530,12 @@ el.addEventListener('waiting',e=>{if(e.target===audio)statusEl.textContent='讀�
 el.addEventListener('playing',e=>{if(e.target===audio)statusEl.textContent=tracks[cursor]?.stream?'LIVE 播送中':'播放中';});
 el.addEventListener('error',e=>{
   if(e.target!==audio)return;
-  hadError=true;statusEl.textContent=tracks[cursor]?.stream?'電台連不上,換一台試試':'音訊載入失敗，請再按一次播放';
+  hadError=true;
+  const t=tracks[cursor];
+  statusEl.textContent=t?.stream?'電台連不上,換一台試試':'音訊載入失敗，請再按一次播放';
+  // 分享進來的歌另外問一次狀態碼：<audio> 的 error 事件不帶狀態，分不出
+  // 「音檔已被清掉」與「網路不好」，而分享連結會活得比音檔久
+  if(t?.kind==='shared'&&t.src)checkSharedGone(t.src);
   setTimeout(()=>{if(hadError&&audio.paused)audio.load();},0);
 });
 el.addEventListener('play',e=>{if(e.target===audio)onPlayEvt();});
@@ -1208,6 +1213,14 @@ function setMediaSession(track){
    音檔本身不進資料庫，state.src 是它原本的網址；playTrack 會自己判斷那是
    跨站 URL 而走 audioNet（不接頻譜 graph，所以不需要對方開 CORS）。 */
 const SHARE_API='https://shorturl.yazelinj303.workers.dev/api/template/';
+
+async function checkSharedGone(src){
+  // 來源回 410 就是音檔已經被保留期清掉了，明講；問不到就維持原本的訊息
+  try{
+    const r=await fetch(src,{method:'GET',headers:{Range:'bytes=0-0'}});
+    if(r.status===410)statusEl.textContent='這首歌已過期（音檔已清除）';
+  }catch(e){/* 對方沒開 CORS 或斷線：不亂猜，維持原訊息 */}
+}
 
 async function fetchSharedTrack(code){
   const res=await fetch(SHARE_API+encodeURIComponent(code));
