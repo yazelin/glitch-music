@@ -119,6 +119,7 @@
   .music-artist{color:var(--mute);font-size:.72rem;margin-top:2px}
   .music-title-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}
   .music-status{color:var(--cy);font-size:.66rem;border:1px solid rgba(var(--cy-rgb),.22);border-radius:999px;padding:2px 8px;background:rgba(var(--cy-rgb),.08)}
+  .music-share-actions{display:flex;gap:6px;margin-top:7px}
   .music-lyrics-toggle{border:1px solid rgba(var(--purple-rgb),.35);border-radius:999px;background:rgba(var(--purple-rgb),.08);color:var(--purple);padding:3px 9px;font-size:.66rem;cursor:pointer}
   .music-lyrics-toggle:hover,.music-lyrics-toggle[aria-expanded=true]{background:rgba(var(--purple-rgb),.2);color:var(--ink)}
   .music-time{display:flex;align-items:center;justify-content:space-between;color:var(--mute);font-size:.66rem;font-variant-numeric:tabular-nums;margin-top:4px}
@@ -284,7 +285,7 @@
     </div>
     <div class="music-controls">
       <div class="music-title-row">
-        <div><div class="music-title" id="music-title">格莉奇 4KB</div><div class="music-artist" id="music-artist">yaze_lin_j303</div></div>
+        <div><div class="music-title" id="music-title">格莉奇 4KB</div><div class="music-artist" id="music-artist">yaze_lin_j303</div><div class="music-share-actions" id="music-share-actions" style="display:none"><button class="music-lyrics-toggle" id="music-save" type="button" title="存進本機曲庫，之後離線也能聽">存進曲庫</button><button class="music-lyrics-toggle" id="music-dl" type="button" title="把 mp3 存成檔案">下載</button></div></div>
         <div class="music-title-actions"><span class="music-status" id="music-status">準備播放</span><button class="music-lyrics-toggle" id="music-mode" type="button" title="播放模式">循環</button><button class="music-lyrics-toggle" id="music-lyrics-toggle" type="button" aria-expanded="false" aria-controls="music-lyrics">歌詞</button></div>
       </div>
       <input class="music-range" id="music-progress" type="range" min="0" max="195" value="0" step="0.1" aria-label="播放進度">
@@ -1242,6 +1243,60 @@ async function fetchSharedTrack(code){
   };
 }
 
+/* 分享曲留下來 —— 分享連結會活得比音檔久（音檔到期就清），存進曲庫之後
+   就跟自己匯入的歌一樣：永久保存、離線可播、進得了歌單。
+   之所以抓得到位元組，是因為來源那端有開 CORS。 */
+const saveBtn=$('music-save'),dlBtn=$('music-dl'),shareActions=$('music-share-actions');
+let sharedBuf=null;   // 抓過一次就留著，存曲庫與下載共用，不重抓 3 MB
+
+async function sharedBytes(t){
+  if(sharedBuf&&sharedBuf.id===t.id)return sharedBuf.buf;
+  const res=await fetch(t.src);
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const buf=await res.arrayBuffer();
+  sharedBuf={id:t.id,buf};
+  return buf;
+}
+
+async function saveSharedToLibrary(){
+  const t=tracks[cursor];if(!t||t.kind!=='shared')return;
+  saveBtn.disabled=true;statusEl.textContent='下載中…';
+  try{
+    const buf=await sharedBytes(t);
+    const id=await songId(buf);
+    if(library.some(x=>x.id===id)){statusEl.textContent='這首已經在曲庫裡了';return;}
+    const song={
+      id,kind:'user',
+      title:t.title,artist:t.artist||'分享',album:t.album||'',
+      name:t.title+'.mp3',blob:new Blob([buf],{type:'audio/mpeg'}),
+      coverBlob:null,lyrics:t.lyrics||[],lrc:t.lrc||null,addedAt:Date.now(),
+    };
+    if(t.cover){try{const c=await fetch(t.cover);if(c.ok)song.coverBlob=await c.blob();}catch(e){}}
+    await songPut(song);
+    library.push(song);await saveOrder();rebuildQueue();renderPlaylist();renderLists();renderDetail();
+    statusEl.textContent='已存進曲庫，離線也聽得到';
+  }catch(e){
+    console.warn('存進曲庫失敗',e);
+    statusEl.textContent='存進曲庫失敗（音檔可能已過期）';
+  }finally{saveBtn.disabled=false;}
+}
+
+async function downloadShared(){
+  const t=tracks[cursor];if(!t||t.kind!=='shared')return;
+  dlBtn.disabled=true;
+  try{
+    const buf=await sharedBytes(t);
+    const url=URL.createObjectURL(new Blob([buf],{type:'audio/mpeg'}));
+    const a=document.createElement('a');a.href=url;a.download=t.title+'.mp3';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+  }catch(e){
+    console.warn('下載失敗',e);statusEl.textContent='下載失敗（音檔可能已過期）';
+  }finally{dlBtn.disabled=false;}
+}
+saveBtn.addEventListener('click',saveSharedToLibrary);
+dlBtn.addEventListener('click',downloadShared);
+
 function playTrack(i,autoplay){
   radioMode=false;currentStation=-1;document.body.classList.remove('radio-on');destroyHls();
   cursor=i;const t=tracks[i];if(!t)return;
@@ -1252,6 +1307,7 @@ function playTrack(i,autoplay){
   const next=useNet?audioNet:audioLocal;
   if(next!==audio){audio.pause();audio.removeAttribute('src');audio.load();audio=next;audio.volume=Number(volume.value);}
   audio.src=trackUrl(t);progress.max=t.duration||1;updateProgress();
+  shareActions.style.display=t.kind==='shared'?'flex':'none';
   renderPlaylist();renderLyrics(t);setMediaSession(t);syncMini();
   kvSet('last',t.id).catch(()=>{});
   if(autoplay)toggle();
