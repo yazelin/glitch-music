@@ -1200,6 +1200,35 @@ function setMediaSession(track){
   };
   Object.entries(acts).forEach(([a,h])=>{try{navigator.mediaSession.setActionHandler(a,h);}catch(e){}});
 }
+/* ===== 分享連結匯入 =====
+   短網址 worker 的 /s/<code> 會導到這裡並帶上 ?id=<code>，用同一個 code 去
+   /api/template/<code> 換回這首歌的 metadata 與歌詞。做法沿用 PromptFill 與
+   line-chat-maker 那條，只是終點換成播放器。
+
+   音檔本身不進資料庫，state.src 是它原本的網址；playTrack 會自己判斷那是
+   跨站 URL 而走 audioNet（不接頻譜 graph，所以不需要對方開 CORS）。 */
+const SHARE_API='https://shorturl.yazelinj303.workers.dev/api/template/';
+
+async function fetchSharedTrack(code){
+  const res=await fetch(SHARE_API+encodeURIComponent(code));
+  if(!res.ok)throw new Error('share '+res.status);
+  const data=await res.json();
+  if(data.app!=='glitch-music'||!data.state||!data.state.src)throw new Error('not a glitch-music share');
+  const st=data.state;
+  return {
+    id:'shared-'+code,
+    kind:'shared',
+    title:st.title||'分享的歌',
+    artist:st.artist||'',
+    album:st.album||'',
+    src:st.src,
+    cover:st.cover||'',
+    duration:Number(st.duration)||0,
+    lyrics:Array.isArray(st.lyrics)?st.lyrics:[],
+    lrc:st.lrc||'',
+  };
+}
+
 function playTrack(i,autoplay){
   radioMode=false;currentStation=-1;document.body.classList.remove('radio-on');destroyHls();
   cursor=i;const t=tracks[i];if(!t)return;
@@ -1227,6 +1256,20 @@ function playTrack(i,autoplay){
   try{user=await songsAll();}catch(e){console.warn('本機曲庫讀取失敗',e);}
   user.sort((a,b)=>a.addedAt-b.addedAt);
   library=[...builtin,...user];
+  // 分享連結帶進來的歌排在最前面，並且是這次要播的那首
+  let sharedId=null;
+  try{
+    const code=new URLSearchParams(location.search).get('id');
+    if(code){
+      statusEl.textContent='讀取分享的歌…';
+      const t=await fetchSharedTrack(code);
+      library=[t,...library.filter(x=>x.id!==t.id)];
+      sharedId=t.id;
+    }
+  }catch(e){
+    console.warn('分享連結讀取失敗',e);
+    statusEl.textContent='分享連結讀取失敗';
+  }
   try{
     const order=await kvGet('order');
     if(Array.isArray(order)&&order.length){
@@ -1244,8 +1287,17 @@ function playTrack(i,autoplay){
   audioLocal.volume=audioNet.volume=Number.isFinite(saved)&&saved>=0&&saved<=1?saved:.8;
   volume.value=audioLocal.volume;volumeValue.textContent=Math.round(audio.volume*100)+'%';rangeFill(volume,audio.volume);rangeFill(progress,0);
   let start=0;
-  try{const last=await kvGet('last');const i=tracks.findIndex(t=>t.id===last);if(i>=0)start=i;}catch(e){}
+  if(sharedId){
+    const i=tracks.findIndex(t=>t.id===sharedId);if(i>=0)start=i;
+  }else{
+    try{const last=await kvGet('last');const i=tracks.findIndex(t=>t.id===last);if(i>=0)start=i;}catch(e){}
+  }
   if(tracks.length)playTrack(start,false);else renderPlaylist();
+  // 分享連結進來的就直接播。瀏覽器多半會擋掉沒有手勢的自動播放，擋掉就
+  // 安靜地停在待播狀態讓使用者自己按，不要跳「無法播放」嚇人
+  if(sharedId&&tracks[start]){
+    audio.play().then(()=>setLyrics(true)).catch(()=>{statusEl.textContent='點播放鍵開始';});
+  }
   try{
     const pos=await kvGet('pos');
     if(pos&&pos.t>3&&tracks[cursor]&&tracks[cursor].id===pos.id){
