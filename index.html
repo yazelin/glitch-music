@@ -25,8 +25,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="images/icon-192.png" type="image/png">
-<link rel="apple-touch-icon" href="images/icon-192.png">
+<link rel="icon" href="images/icon-v2-192.png" type="image/png">
+<link rel="apple-touch-icon" href="images/icon-v2-192.png">
 <style>
   :root{
     /* 主題 token:四款主題只換這層,規則全部吃 token。
@@ -271,7 +271,7 @@
 </svg>
 
 <header>
-  <img src="images/icon-192.png" alt="">
+  <img src="images/icon-v2-192.png" alt="">
   <b>格莉奇音樂</b>
   <span class="sp"></span>
   <button class="chip" id="theme-btn" type="button" title="切換主題配色">暗 · glitch</button>
@@ -460,7 +460,7 @@ function trackUrl(t){if(t.src)return t.src;if(!t._url)t._url=URL.createObjectURL
 function coverUrl(t){
   if(t.cover)return t.cover;
   if(t.coverBlob){if(!t._cover)t._cover=URL.createObjectURL(t.coverBlob);return t._cover;}
-  return 'images/icon-192.png';
+  return 'images/icon-v2-192.png';
 }
 function updateProgress(){
   const live=radioMode||tracks[cursor]?.stream||audio.duration===Infinity;
@@ -1040,7 +1040,7 @@ async function attachSource(el,src){
 async function saveStations(){await kvSet('stations',stations.map(x=>({...x}))).catch(()=>{});}
 function renderRadio(){
   if(document.body.dataset.view!=='radio')return;
-  const items=stations.map(st=>({id:st.id,title:st.name,artist:st.desc||new URL(st.src).hostname,stream:true,cover:'images/icon-192.png'}));
+  const items=stations.map(st=>({id:st.id,title:st.name,artist:st.desc||new URL(st.src).hostname,stream:true,cover:'images/icon-v2-192.png'}));
   renderRows($('radio-list'),items,{
     nowId:radioMode?stations[currentStation]?.id:null,
     onPlay:i=>{playStation(i);setView('player');},
@@ -1074,7 +1074,7 @@ function playStation(i){
   const st=stations[i];if(!st)return;
   radioMode=true;currentStation=i;document.body.classList.add('radio-on');
   $('music-title').textContent=st.name;$('music-artist').textContent=(st.desc||'')+' · 24/7 電台';
-  $('music-cover').src='images/icon-192.png';
+  $('music-cover').src='images/icon-v2-192.png';
   if(audio!==audioNet){audio.pause();audio=audioNet;audio.volume=Number(volume.value);}
   audioLocal.pause();
   attachSource(audio,st.src).then(()=>{if(radioMode&&currentStation===i)toggle();}).catch(()=>{statusEl.textContent='電台連不上,換一台試試';});
@@ -1082,7 +1082,7 @@ function playStation(i){
   renderPlaylist();renderRadio();renderLyrics({title:st.name,lyrics:[]});
   if('mediaSession'in navigator){
     navigator.mediaSession.metadata=new MediaMetadata({title:st.name,artist:st.desc||'24/7 電台',album:'格莉奇音樂 電台',
-      artwork:[{src:new URL('images/icon-192.png',location.href).href,sizes:'192x192',type:'image/png'}]});
+      artwork:[{src:new URL('images/icon-v2-192.png',location.href).href,sizes:'192x192',type:'image/png'}]});
     for(const a of['previoustrack','nexttrack','seekbackward','seekforward','seekto']){try{navigator.mediaSession.setActionHandler(a,null);}catch(e){}}
   }
   syncMini();
@@ -1113,7 +1113,7 @@ $('miniplayer').addEventListener('click',e=>{if(!e.target.closest('#mini-play'))
 $('mini-play').addEventListener('click',toggle);
 function syncMini(){
   if(radioMode){
-    $('mini-cover').src='images/icon-192.png';
+    $('mini-cover').src='images/icon-v2-192.png';
     $('mini-title').textContent=(stations[currentStation]?.name||'電台')+' · LIVE';
     $('mini-play-icon').setAttribute('href',audio.paused?'#i-play':'#i-pause');
     return;
