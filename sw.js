@@ -5,7 +5,7 @@
 
 /* cache:start — scripts/update_sw_hashes.py 產生，勿手改 */
 const SHELL_CACHE = 'glmusic-shell-9037d5267afa';
-const ASSET_CACHE = 'glmusic-assets-eb2cdd54a05f';
+const ASSET_CACHE = 'glmusic-assets-59084a5424eb';
 /* cache:end */
 const KEEP = [SHELL_CACHE, ASSET_CACHE];
 const MATCH = { ignoreSearch: true, ignoreVary: true };
