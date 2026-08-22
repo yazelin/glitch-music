@@ -65,6 +65,35 @@ python3 scripts/update_sw_hashes.py
 2. `tracks.json` 加一筆 `{id,title,artist,album,src,cover,duration,lyrics}`。
 3. `sw.js` 的 `warm:start` 清單加上新音檔路徑，跑 `scripts/update_sw_hashes.py`。
 
+### 換圖示
+
+```bash
+python3 scripts/make_icon.py     # 產出 images/icon-v2-*.png
+```
+
+圖是程式畫的（深藍底＋放射頻譜環＋發光核，配色吃站上的 `--cy`／`--mint`／`--purple`），
+沒有 AI 生圖，任何尺寸都銳利。改設計就改 `scripts/make_icon.py` 再跑一次。
+
+兩件會咬人的事：
+
+- **換圖示內容一定要一起換檔名**（`icon-v2-*` → `icon-v3-*`）。favicon 資料庫常無視快取
+  標頭、SW 是 cache-first、已安裝的 PWA 圖示在安裝當下就烤進去，不改檔名等於改不動。
+- **`icon-v2-192.png` 同時是預設專輯封面**（電台、沒有封面的曲目、mini player、Media
+  Session 都指向它），所以它在方形封面框裡也要看得下去。
+
+改完要同步四處：`manifest.webmanifest`、`sw.js` 的 precache 清單、`index.html` 的
+`<link rel=icon>` 與 `apple-touch-icon`、以及上面那些拿它當預設封面的地方，然後跑
+`scripts/update_sw_hashes.py`。
+
+驗收：
+
+```bash
+NODE_PATH=/home/ct/line-sticker-studio/node_modules node ~/pwa-skill/tools/pwa-check.mjs . --port 8188
+```
+
+`manifest icons` 那條會讀 PNG 的 IHDR 跟 manifest 宣告的 `sizes` 比對，不符會靜默擋掉
+安裝門檻。maskable 版的內容寬要落在 72–76%，太小套上 Android 的遮罩會顯得縮水。
+
 ## 部署
 
 GitHub Pages，`main` 分支根目錄。推上去即生效。
