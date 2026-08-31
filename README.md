@@ -98,6 +98,13 @@ NODE_PATH=/home/ct/line-sticker-studio/node_modules node ~/pwa-skill/tools/pwa-c
 
 GitHub Pages，`main` 分支根目錄。推上去即生效。
 
+## 授權
+
+**雙軌**：歌曲、封面與站台內容 是 **CC BY-NC 4.0**（見 `LICENSE`），程式碼是 **MIT**（見 `LICENSE-CODE`）。
+創作內容可以自由分享改作、須標示出處、不可商用；商業使用含角色授權要先問過林亞澤。
+角色（格莉奇、黑洞先生）的設定正典在
+[ai-brain-site](https://github.com/yazelin/ai-brain-site) 的 `persona.json`。
+
 ---
 
 作者：[GitHub](https://github.com/yazelin) | [Facebook](https://www.facebook.com/yaze.lin.gm) | [Buy Me a Coffee](https://buymeacoffee.com/yazelin)
