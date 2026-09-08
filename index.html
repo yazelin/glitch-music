@@ -338,7 +338,7 @@
     <div id="pl-tracks"></div>
   </div>
 
-  <audio id="music-audio" preload="metadata" playsinline></audio>
+  <audio id="music-audio" preload="metadata" playsinline crossorigin="anonymous"></audio><!-- crossorigin：被 sandbox iframe 嵌入時本頁 origin 是 null，自家 mp3 變成跨網域；不用 CORS 模式載入，接進 AudioContext 就是靜音、頻譜全平（GitHub Pages 對音檔本來就回 ACAO *） -->
   <audio id="music-audio-net" preload="none" playsinline></audio>
 
   <aside class="music-lyrics-panel" id="music-lyrics" aria-hidden="true" aria-labelledby="music-lyrics-title">

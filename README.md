@@ -59,6 +59,8 @@ python3 scripts/update_sw_hashes.py
 
 它依內容 hash 更新 `sw.js` 的兩層快取名（shell／asset），不用手動 bump 版號。
 
+被別的網站用 sandbox iframe 嵌入（例如 Larch 小遊戲卡）時，本頁 origin 會是 `null`，自家音檔對它來說變成跨網域；`#music-audio` 因此標了 `crossorigin="anonymous"`，否則接進 AudioContext 的聲音會被判成污染來源：進度照走、喇叭無聲、頻譜全平。GitHub Pages 對音檔本來就回 `Access-Control-Allow-Origin: *`，換別的主機要確認這個標頭還在。
+
 ### 加一首歌
 
 1. mp3 放進 `audio/`、封面放進 `images/`。
